@@ -1,0 +1,21 @@
+# Placement policy for AI jobs: which Nano model normally handles each job,
+# and what to fall back to if the Nano model can't. Policy lives here, not
+# hardcoded, so changing the fallback provider or a job's model is a config
+# change (see HANDOFF.md section 15.7).
+#
+# Default is always the Nano. Cloud is only ever a fallback, and every use
+# is logged (provider, latency, tokens, cost) via chameleon.llm -- see
+# organizer answers 1 and 4 in HANDOFF.md section 3.
+
+cloud_fallback:
+  # Deliberately not AWS Bedrock: AWS people are judges (organizer answer 3).
+  provider: anthropic
+  model: claude-haiku-4-5-20251001
+
+jobs:
+  honeypot_turn:
+    nano_model: writer
+  write_patch:
+    nano_model: writer
+  verify_patch:
+    nano_model: verifier
