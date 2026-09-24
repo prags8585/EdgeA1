@@ -1,0 +1,61 @@
+{
+  "machine": "spark-ec8",
+  "arch": "aarch64",
+  "train_rows": 22098,
+  "train_seconds": 3.22,
+  "threshold": 0.5,
+  "test": {
+    "n": 10632,
+    "precision": 0.9985,
+    "recall": 0.9896,
+    "f1": 0.994,
+    "false_positive_rate": 0.0009,
+    "tp": 3978,
+    "fp": 6,
+    "fn": 42,
+    "tn": 6606
+  },
+  "test_by_source": {
+    "deepset": {
+      "n": 116,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "f1": 0.8,
+      "false_positive_rate": 0.0,
+      "tp": 40,
+      "fp": 0,
+      "fn": 20,
+      "tn": 56
+    },
+    "httpparams": {
+      "n": 10258,
+      "precision": 0.9997,
+      "recall": 0.995,
+      "f1": 0.9974,
+      "false_positive_rate": 0.0002,
+      "tp": 3805,
+      "fp": 1,
+      "fn": 19,
+      "tn": 6433
+    },
+    "jackhhao": {
+      "n": 258,
+      "precision": 0.9638,
+      "recall": 0.9779,
+      "f1": 0.9708,
+      "false_positive_rate": 0.041,
+      "tp": 133,
+      "fp": 5,
+      "fn": 3,
+      "tn": 117
+    }
+  },
+  "heldout_recall": 0.0,
+  "heldout_types": [
+    "path-traversal"
+  ],
+  "latency_ms_per_request": {
+    "median": 0.363,
+    "p95": 0.559
+  }
+}
