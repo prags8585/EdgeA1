@@ -221,7 +221,7 @@ Decision fusion, as a starting point to tune: malicious if either model is confi
 | Jev check layer | Classifies each request as malicious/safe with confidence | Cloud, next to the app | Fast typed decisions, no text generation; placed near the app so normal users see almost no extra delay |
 | Nano check model (built) | Same job, our own trained classifier | Nano, `127.0.0.1:8010` | Organizer requirement: a model we trained, hosted on the Nano. Fallback and second opinion |
 | Application (demo) | The software being protected: a small web API plus a chatbot endpoint | Local on the Nano (or cloud) | A demo target only, not part of the product |
-| Nano gateway | Receives rerouted requests; API keys, rate limits, audit log | Nano, `:8080` | The only door into the Nano; model servers stay on localhost |
+| Nano gateway | Receives rerouted requests; API keys, rate limits, audit log | Nano, `:8085` | The only door into the Nano; model servers stay on localhost |
 | Orchestrator | Places each AI job on a Nano model or a cloud fallback; logs placement, cost, latency | Nano | Organizer answers 1 and 4 |
 | Honeypot AI | Pretends to be the real app, keeps the attacker engaged, serves fake data with canaries | Nano (Qwen via vLLM) | Wastes attacker time, captures techniques, exposes nothing real |
 | Attack log | Stores every attacker message, payload, session | Nano (SQLite) | Evidence for patching and the dashboard; stays on-site |
@@ -230,17 +230,20 @@ Decision fusion, as a starting point to tune: malicious if either model is confi
 | Verifier AI | Independently reviews the patch | Nano (Mistral or Gemma via vLLM) | Different family, different blind spots |
 | Patch store and dashboard | Versioned approved patches with rollback; live metrics for both cloud and Nano | Nano | One screen for attacks, patches, decisions, cloud vs Nano numbers |
 
-### 5.4 Ports (planned; keep everything on 127.0.0.1 except the gateway)
+### 5.4 Ports (corrected 2026-09-25 after testing real ZRT behavior; keep everything on 127.0.0.1 except the gateway)
+
+**Correction to the original plan:** `zrt serve` does not give each model its own port. Every model ZRT serves — however many you start — goes through **one shared proxy** (default `127.0.0.1:8080`), and requests are routed to the right backend by the OpenAI `"model"` field (the `--label`/served-as name), not by port. So the writer and verifier models share port 8080, distinguished by `"model": "writer"` vs `"model": "verifier"` in the request body. This freed up 8002/8003 and forced the gateway off 8080 (moved to 8085 below).
+
+**ZRT proxy gotcha (reproduced 2026-09-25, cost about 15 minutes to debug):** immediately after `zrt stop`/`zrt stop --all`, a fresh `zrt serve` can register with the proxy and then have the proxy deregister it and shut down 2-3 seconds later (`zrt services` shows `Dead`, `zrt logs tail proxy` says `removed 1 ... new total 0, shutting down cleanly`), even though the actual vLLM backend is still alive and loading normally underneath. This is a stale-state race in ZRT's own proxy bookkeeping, not a real crash or an OOM — the backend process (`ps aux | grep EngineCore`) keeps running fine. **Fix:** after any stop, explicitly confirm zero processes and an empty `zrt services` table before the next `zrt serve` (`zrt stop --all`, kill any leftover tmux/vllm processes, `sleep 2-3`, verify, then serve). Restarting immediately after a stop reproduces the bug reliably; waiting for a clean slate avoids it every time in testing.
 
 | Port | Service |
 | --- | --- |
-| 8002 | vLLM: Qwen big model (honeypot + patch writer) |
-| 8003 | vLLM: verifier model (Mistral or Gemma) |
-| 8010 | Nano check model API (built) |
-| 8080 | Nano gateway (keyed reverse proxy). Only bind beyond localhost if the demo truly needs it, and never expose it to the public internet |
+| 8080 | ZRT proxy (OpenAI-compatible, shared by every `zrt serve`d model: writer, verifier). Route by `"model"` name, not port |
+| 8010 | Nano check model API (built, plain FastAPI/uvicorn, not through ZRT) |
+| 8085 | Nano gateway (keyed reverse proxy). Only bind beyond localhost if the demo truly needs it, and never expose it to the public internet |
 | 8100 | Backend / orchestrator API |
 | 8200 | Demo application (web API + chatbot endpoint) |
-| 3000 | Dashboard |
+| 3000 | Dashboard (note: port 3000 was also used by a leftover Docker container from the factory demo image — confirm nothing else is bound there before serving the real dashboard) |
 
 To view a Nano web page from a laptop, tunnel it: `ssh -L 3000:127.0.0.1:3000 hpX@<tailscale-ip>`, then open `http://127.0.0.1:3000`.
 
@@ -254,8 +257,8 @@ To view a Nano web page from a laptop, tunnel it: `ssh -L 3000:127.0.0.1:3000 hp
 | --- | --- | --- | --- | --- |
 | Cloud check | **Jev** (TypeSafe AI) | Hosted API, early access (waitlist) | Cloud | 0 on the Nano |
 | Nano check | Our TF-IDF + logistic regression classifier (built) | Trained on the Nano | Nano, CPU | Tiny |
-| Honeypot + patch writer | **Qwen3-Next-80B-A3B-Instruct**, 4-bit (NVFP4) or FP8 variant. About 3B active parameters per token, so fast for its size | Hugging Face | Nano, vLLM on :8002 | ~40–45 GB |
-| Patch verifier | **Mistral or Gemma** instruct, 8–12B, strong at code | Hugging Face | Nano, vLLM on :8003 | ~15–25 GB |
+| Honeypot + patch writer | **`nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4`** (confirmed to exist on HF 2026-09-25; NVIDIA's own NVFP4 conversion, tuned for GB10). About 3B active parameters per token, so fast for its size | Hugging Face | Nano, `zrt serve`, proxy `:8080`, served-as `writer` | ~40–45 GB |
+| Patch verifier | **`google/gemma-4-12B-it`** (confirmed on HF 2026-09-25; official Google instruct release, different family from Qwen, strong coding benchmarks) | Hugging Face | Nano, `zrt serve`, proxy `:8080`, served-as `verifier` | ~24 GB (bf16) |
 | OS and services | n/a | n/a | Nano | ~10–15 GB |
 
 Total is roughly 75–85 GB of 128 GB. **These are planning estimates.** Measure with `nvidia-smi` once both models are running.
