@@ -17,5 +17,8 @@ train-check: dataset
 serve-check:
 	$(PY) -m uvicorn chameleon.check.serve:app --host 127.0.0.1 --port 8010
 
+serve-demo:
+	$(PY) -m uvicorn chameleon.demoapp.main:app --host 127.0.0.1 --port 8200
+
 test:
 	$(PY) -m pytest -q

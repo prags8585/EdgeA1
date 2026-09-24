@@ -6,4 +6,6 @@ __pycache__/
 
 data/raw/
 data/check/
+data/generated/
+*.db
 models/
