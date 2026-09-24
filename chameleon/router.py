@@ -1,9 +1,8 @@
 """The front door: decide safe vs malicious for one request, log it, route it.
 
-Safe requests go to the demo app. Malicious requests should go to the
-honeypot on the Nano -- that piece doesn't exist yet (NEXT STEPS step 8),
-so for now this returns "honeypot_pending" and the caller is expected to
-wire in the real handoff once chameleon.honeypot exists.
+Safe requests go to the demo app. Malicious requests are rerouted to a
+honeypot session on the Nano, which keeps the attacker engaged instead of
+just returning an error.
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ import time
 import uuid
 
 from . import db, fusion
+from .honeypot import session as honeypot_session
 
 
 def _hash_inputs(field_inputs: dict[str, str]) -> str:
@@ -35,9 +35,24 @@ def handle_request(field_inputs: dict[str, str], conn=None) -> dict:
              result["jev_score"], result["nano_score"], result["decision"], 0.0),
         )
         conn.commit()
+
+        honeypot_reply = None
+        session_id = None
+        if result["decision"] == "malicious":
+            session_id = honeypot_session.start_session(session_type="web", conn=conn)
+            payload = " | ".join(f"{k}={v}" for k, v in field_inputs.items())
+            honeypot_reply = honeypot_session.respond(
+                session_id, field=",".join(field_inputs), payload=payload, conn=conn,
+            )
     finally:
         if owns_conn:
             conn.close()
 
-    routed_to = "app" if result["decision"] == "safe" else "honeypot_pending"
-    return {**result, "request_id": request_id, "routed_to": routed_to}
+    routed_to = "app" if result["decision"] == "safe" else "honeypot"
+    return {
+        **result,
+        "request_id": request_id,
+        "routed_to": routed_to,
+        "session_id": session_id,
+        "honeypot_reply": honeypot_reply,
+    }
