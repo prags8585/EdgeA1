@@ -241,9 +241,9 @@ Decision fusion, as a starting point to tune: malicious if either model is confi
 | 8080 | ZRT proxy (OpenAI-compatible, shared by every `zrt serve`d model: writer, verifier). Route by `"model"` name, not port |
 | 8010 | Nano check model API (built, plain FastAPI/uvicorn, not through ZRT) |
 | 8085 | Nano gateway (keyed reverse proxy). Only bind beyond localhost if the demo truly needs it, and never expose it to the public internet |
-| 8100 | Backend / orchestrator API |
+| 8100 | Backend API **and** dashboard (combined, `make serve-dashboard`) — simplified from the original two-port plan; the dashboard HTML is served from the same FastAPI app at `/`, REST under `/api/*`, live updates over `/ws` |
 | 8200 | Demo application (web API + chatbot endpoint) |
-| 3000 | Dashboard (note: port 3000 was also used by a leftover Docker container from the factory demo image — confirm nothing else is bound there before serving the real dashboard) |
+| 3000 | No longer used (was also occupied by a leftover Docker container from the factory demo image) |
 
 To view a Nano web page from a laptop, tunnel it: `ssh -L 3000:127.0.0.1:3000 hpX@<tailscale-ip>`, then open `http://127.0.0.1:3000`.
 

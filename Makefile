@@ -20,5 +20,8 @@ serve-check:
 serve-demo:
 	$(PY) -m uvicorn chameleon.demoapp.main:app --host 127.0.0.1 --port 8200
 
+serve-dashboard:
+	$(PY) -m uvicorn chameleon.api.main:app --host 127.0.0.1 --port 8100
+
 test:
 	$(PY) -m pytest -q
