@@ -307,7 +307,7 @@ curl -s http://127.0.0.1:8002/v1/chat/completions \
 ```
 
 - `--tensor-parallel-size 1` (single GPU).
-- Keep `--max-model-len` bounded (HP uses 16384; we use 8192). The huge default reserves a giant KV cache and can run out of memory on unified memory.
+- Keep `--max-model-len` bounded (HP uses 16384; we use 8192). The huge default reserves a giant KV cache and can run out of memory on unified memory. **Confirmed 2026-09-25:** serving `nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4` through `zrt serve` with no override defaulted to `max_model_len=262144` (the checkpoint's native context) and the backend silently died (SIGKILL, no Python-level error, both the APIServer and EngineCore processes just vanished) partway through CUDA graph capture -- almost certainly an OOM from the KV-cache reservation for a 262k-token window on an 80B model. **Through `zrt serve` specifically**, bound it with `--extra '--max-model-len=8192'` (not a bare `--max-model-len` flag, which zrt doesn't expose directly): `zrt serve hf:<repo> --label <name> --extra '--max-model-len=8192'`. Retry succeeded with this set.
 - **Do not pass `--quantization`**; vLLM detects it from the checkpoint. Forcing it causes kernel mismatches.
 - For agentic use HP suggests `GENERIC_OPENAI_STREAMING_DISABLED=true` in the environment.
 - If the second server refuses to start, lower the first one's `--gpu-memory-utilization` and start them one at a time.
