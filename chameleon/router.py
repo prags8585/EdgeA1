@@ -21,12 +21,11 @@ def _hash_inputs(field_inputs: dict[str, str]) -> str:
 
 def handle_request(field_inputs: dict[str, str], conn=None) -> dict:
     """field_inputs: e.g. {"q": "..."} or {"username": "...", "password": "..."}."""
-    result = fusion.decide(list(field_inputs.values()))
-
     owns_conn = conn is None
     conn = conn or db.get_connection()
     try:
         db.init_db(conn)
+        result = fusion.decide(field_inputs, conn=conn)
         request_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO requests (id, ts, inputs_hash, jev_score, nano_score, decision, latency_ms)

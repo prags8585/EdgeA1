@@ -3,9 +3,9 @@ from chameleon.honeypot import session as honeypot_session
 
 
 def _fake_decide_factory(decision: str):
-    def _decide(inputs):
+    def _decide(field_inputs, conn=None):
         return {"decision": decision, "nano_score": 0.9 if decision == "malicious" else 0.02,
-                "jev_score": None, "reason": "test"}
+                "jev_score": None, "reason": "test", "rule_id": None}
     return _decide
 
 
