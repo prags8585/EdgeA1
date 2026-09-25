@@ -52,7 +52,23 @@ CLOUD_PRICE_OUT_PER_1K = float(os.getenv("CLOUD_PRICE_OUT_PER_1K", "0"))
 CLOUD_DAILY_REQUEST_BUDGET = int(os.getenv("CLOUD_DAILY_REQUEST_BUDGET", "0"))
 
 JEV_API_KEY = os.getenv("JEV_API_KEY", "")
-JEV_API_URL = os.getenv("JEV_API_URL", "")
+JEV_API_URL = os.getenv("JEV_API_URL", "") or "https://api.typesafe.ai/v1/systemone"
+JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
+# Jev sits in front of every request, so a slow answer counts as no answer:
+# past this budget the Nano check model decides alone.
+JEV_TIMEOUT_S = float(os.getenv("JEV_TIMEOUT_S", "2.0"))
+JEV_THRESHOLD = float(os.getenv("JEV_THRESHOLD", "0.5"))
+
+# Patch store (Redis). Empty = patches live only in SQLite.
+REDIS_URL = os.getenv("REDIS_URL", "")
+
+# Decoy app on the Nano: where malicious requests are redirected.
+DECOY_APP_URL = os.getenv("DECOY_APP_URL", "http://127.0.0.1:8300")
+# Front-door gateway: the address real clients (and attackers) use.
+GATEWAY_URL = os.getenv("GATEWAY_URL", "http://127.0.0.1:8000")
+
+# The four demo app files that approved patches are rendered into.
+APPS_DIR = Path(os.getenv("APPS_DIR", str(ROOT / "chameleon" / "apps")))
 
 # --- Nano vs AWS comparison (chameleon.cloud_mirror) ---
 # Same model on both sides: Qwen3-Next-80B-A3B. Bedrock on-demand prices for

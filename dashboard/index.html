@@ -111,6 +111,7 @@
   .rule.auto .pat { color: var(--text); }
   .rule.auto .note { color: var(--muted); }
   .rule.auto svg { color: var(--p); }
+  .trail pre.code { white-space: pre-wrap; word-break: break-all; font-size: 11.5px; color: var(--text); background: #000; border: 1px solid var(--p-border); padding: 8px 10px; margin: 6px 0 10px; }
   .rule.pending { border-style: dashed; border-color: var(--p-border); }
   .rule.pending .id { color: var(--p); animation: pulse 1.4s ease-in-out infinite; }
   .rule.failed { border-style: dashed; opacity: .7; }
@@ -212,6 +213,8 @@
     <div class="badges">
       <span class="badge">AUTO_DEFENSE: ACTIVE</span>
       <span class="badge">INFERENCE: ON-NANO</span>
+      <span class="badge" id="jev-badge">JEV: …</span>
+      <span class="badge" id="redis-badge">PATCH_STORE: …</span>
       <span class="badge" id="cloud-badge">AWS_SPEND: $0.0000</span>
     </div>
   </header>
@@ -428,6 +431,9 @@ async function send() {
     if (!resp.ok) throw new Error(typeof r.detail === 'string' ? r.detail : JSON.stringify(r.detail));
     const score = r.nano_score.toFixed(2);
     const op = $('operator');
+    log(r.jev_score != null
+      ? `JEV: ${r.jev_score.toFixed(2)}${r.jev_attack_type && r.jev_attack_type !== 'none' ? ' (' + r.jev_attack_type + ')' : ''} in ${Math.round(r.jev_latency_ms)} ms · NANO CHECK: ${score}`
+      : `JEV: unavailable (${short(r.jev_error || 'not configured', 60)}), Nano decides · NANO CHECK: ${score}`, 'dim', true);
     if (r.routed_to === 'blocked') {
       const b = r.blocked || {};
       let headline, detail, body;
@@ -448,19 +454,22 @@ async function send() {
       op.className = 'operator leak';
       op.replaceChildren('OPERATOR VIEW · ', el('b', null, 'BLOCKED'), ` — ${detail}.`);
     } else if (r.routed_to === 'honeypot') {
-      const why = `flagged by Nano check model (score ${score})`;
+      const by = (r.flagged_by || ['nano']).map((f) => ({ jev: 'Jev', nano: 'Nano check model', patch: 'a patch' })[f]);
+      const why = `flagged by ${by.join(' + ')}`;
       log(`MALICIOUS: ${why}`, 'bad', true);
-      log('⚠ ROOT ACCESS SIMULATED — rerouted to the HONEYPOT; the attacker believes it worked', 'warn', true);
+      const d = r.decoy_response || {};
+      log(`↪ 307 REDIRECT → decoy app ${d.url || ''} (session ${String(r.session_id).slice(0, 8)})`, 'warn', true);
+      log('⚠ ROOT ACCESS SIMULATED — the decoy plays along; the attacker believes it worked', 'warn', true);
       log(`attacker sees: ${short(r.honeypot_reply.replace(/\s+/g, ' '), 150)}`, 'reply', true);
       if (r.patch_job_id) log('🧬 auto-patch started for this attack (writer → 4 tests → verifier, on the Nano)', 'patch', true);
       else log('already covered by a patch in progress or approved', 'dim', true);
       showResponse(r.honeypot_reply);
       op.className = 'operator honeypot';
       op.replaceChildren('OPERATOR VIEW · served by ', el('b', null, 'HONEYPOT'),
-        ` — fake data with honeytokens unique to this attacker, generated on this Nano (${why}). The attacker can't tell.`);
+        ` — redirected to the decoy app on this Nano; fake data with honeytokens unique to this attacker (${why}). The attacker can't tell.`);
     } else {
       const app = r.app_response;
-      log(`SAFE: passed check model (score ${score}) + every approved patch`, 'ok', true);
+      log(`SAFE: passed Jev, the Nano check model and every approved patch`, 'ok', true);
       if (app.canary_leaked) {
         log(`routed to PRODUCTION: HTTP ${app.status}. CANARY LEAKED — missed attack!`, 'bad', true);
         log('launch an attack wave to teach the system this attack', 'warn', true);
@@ -553,6 +562,13 @@ async function trailFor(patch) {
   const all = await fetch('/api/patches?limit=200').then((r) => r.json());
   const attempts = all.filter((p) => p.attack_type === patch.attack_type).sort((a, b) => a.created_at - b.created_at);
   const trail = el('div', 'trail');
+  try {
+    const stored = (await fetch('/api/patch-store?limit=200').then((r) => r.json())).patches.find((x) => x.id === patch.id);
+    if (stored && stored.python_code) {
+      trail.append(el('div', 'pass', `CODE PATCH → chameleon/apps/${stored.app_files.split(',').join(', ')} · stored in Redis`));
+      trail.append(el('pre', 'code', stored.python_code));
+    }
+  } catch {}
   for (const a of attempts) {
     const events = await fetch(`/api/patches/${a.id}/events`).then((r) => r.json());
     for (const e of events) {
@@ -678,7 +694,7 @@ function connectWs() {
 function bootLines() {
   log('Initialising uplink ...', 'dim');
   log('Target acquired: Administrative Portal (Legacy)', 'dim');
-  log('Routing: automatic. Nano check model + auto-patches decide HONEYPOT or PRODUCTION', 'dim');
+  log('Routing: Jev first, then the Nano check model + auto-patches: PRODUCTION, or 307 to the DECOY app', 'dim');
 }
 
 // ---------- views ----------
@@ -963,6 +979,14 @@ refresh();
 connectWs();
 resumeIfRunning();
 setInterval(refreshRules, 3000);
+async function refreshInfra() {
+  try {
+    const i = await fetch('/api/infra').then((r) => r.json());
+    $('jev-badge').textContent = `JEV: ${i.jev.configured ? 'ON' : 'NO KEY'}`;
+    $('redis-badge').textContent = i.redis.ok ? `PATCH_STORE: REDIS · ${i.redis.active} ACTIVE / ${i.redis.patches}` : 'PATCH_STORE: SQLITE';
+  } catch {}
+}
+refreshInfra(); setInterval(refreshInfra, 10000);
 </script>
 </body>
 </html>

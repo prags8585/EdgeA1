@@ -46,13 +46,15 @@ HP's own research shows attackers increasingly use AI to generate new attack var
 
 ```mermaid
 flowchart TD
-    R[Incoming request] --> J{Jev check<br/>cloud}
-    R --> N{Nano check model<br/>trained on Nano}
-    J --> D{Decision fusion<br/>+ approved patch rules}
+    R[Incoming request] --> GW[Gateway :8000]
+    GW --> J{Jev<br/>TypeSafe, cloud, asked first}
+    GW --> N{Nano check model<br/>trained on Nano}
+    J --> D{Decision fusion<br/>+ approved patches from Redis}
     N --> D
-    D -->|Safe| A[Demo app]
-    D -->|Malicious| G[Honeypot session]
-    G --> H[Honeypot AI<br/>Qwen3-Next-80B-A3B NVFP4]
+    D -->|Safe| A[Demo apps :8200<br/>login · search · files · chat]
+    D -->|Stolen honeytoken or patched attack| X[403]
+    D -->|Malicious| DC[307 redirect to the decoy app :8300<br/>on the Nano]
+    DC --> H[Honeypot AI<br/>Qwen3-Next-80B-A3B NVFP4]
     H --> L[(Attack log)]
     L --> W[Patch writer<br/>80B, or the fine-tuned 7B]
     W --> T[Deterministic tests<br/>replay · URL-encoding · normal traffic · ReDoS]
@@ -60,10 +62,14 @@ flowchart TD
     T --> V{Verifier AI<br/>Gemma 4 12B, different family}
     V --> C[Test the verifier's<br/>example inputs]
     C -->|Confirmed issue| W
-    C -->|No confirmed issue| S[(Patch store)]
+    C -->|No confirmed issue| S[(Redis patch store)]
     S --> D
-    S --> A
+    S -->|rendered as Python| A
 ```
+
+**Request path** (`chameleon/gateway/app.py`, `chameleon/router.py`, `chameleon/fusion.py`): clients use the gateway. Each request goes to Jev first (`chameleon/jev/client.py`: one call asks whether any input is an attack and what kind), then to the Nano check model and the approved patches. It's malicious if any of them flags it; if Jev is missing or slower than `JEV_TIMEOUT_S` (2 s), the Nano decides alone. Safe requests are proxied to the demo apps. Attacks get a **307 redirect to the decoy app** (`chameleon/decoy/app.py`, port 8300): a fake copy of the shop, on the Nano, whose every answer is written live by Qwen with honeytokens unique to that attacker. Using a stolen honeytoken, or repeating an attack an approved patch covers, gets a 403.
+
+**Patches** (`chameleon/patch/`): every honeypot hit starts a background patch job. Approved patches are stored in **Redis** (`redis_store.py`: the rule, its Python code, the attack it came from, and the full test trail), the front door enforces them at once, and `integrate.py` renders each one into the matching demo app as Python between the `AUTO-PATCHES` markers (`chameleon/apps/{login,search,files,chat}_app.py`). The demo app runs with `--reload`, so the code patch is live within seconds. Only verified rules are rendered, through a fixed template: every value enters the code through a Python string literal, and the file must compile before it replaces the old one.
 
 **How the check layer / router works** (`chameleon/fusion.py`, `chameleon/router.py`): every request's untrusted fields go to (a) our own classifier trained and served on the Nano, (b) Jev — TypeSafe AI's cloud decision model, when available — and (c) every currently-approved patch rule. A request is malicious if *any* signal fires. If Jev is unreachable, the system falls back to the Nano model and rules alone — this is also how "offline mode" works: set `CLOUD_ENABLED=false` and nothing changes except Jev drops out of the vote. Both scores are logged for every request (`requests` table), because the disagreement cases are the interesting evidence.
 
@@ -132,8 +138,11 @@ make data                     # download the check-model datasets
 make train-check              # train + serve-ready the Nano check model
 make test                     # unit tests
 
+make serve-redis              # Redis patch store on :6379 (see scripts/serve_redis.sh to build it)
 make serve-check              # check model API on :8010
-make serve-demo               # demo target app on :8200
+make serve-demo               # the four demo apps on :8200 (reloads when a code patch lands)
+make serve-decoy              # decoy app on :8300 (where attackers are redirected)
+make serve-gateway            # front door on :8000
 make serve-dashboard          # backend API + live dashboard on :8100
 ```
 
@@ -180,8 +189,10 @@ The dashboard has three panels: **PAYLOAD_INJECTOR** (a terminal plus attack pre
 - [x] Red-team scenario closing the loop live: 0% → 78% on a never-seen attack type
 - [x] LoRA fine-tune on the Nano, evaluated on held-out attack types, published to Hugging Face
 - [x] Benchmarks with both LLMs serving side by side
-- [ ] Nano gateway (keyed reverse proxy in front of the honeypot) — not built; today the honeypot is called in-process, not over a network boundary
-- [ ] Jev integration — client is a stub; TypeSafe AI access is still on the waitlist, so the system runs on the Nano check model alone
+- [x] Gateway on :8000: proxies safe traffic, 307-redirects attacks to the decoy app, 403s stolen honeytokens and patched attacks
+- [x] Decoy app on the Nano (:8300), every answer written by Qwen
+- [x] Redis patch store; approved patches rendered as Python into the four demo apps
+- [ ] Jev: the client is built and tested against TypeSafe's documented API, but it hasn't been run against the live API yet (set `JEV_API_KEY`); without a key the Nano decides alone
 - [ ] The fine-tuned 7B isn't yet the default writer in production. It's evaluated and published, but serving it needs the backend-socket route (`llm.timed_call(uds=...)`), because ZRT's proxy doesn't route LoRA adapters
 
 **Known weaknesses, measured:**

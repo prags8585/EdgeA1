@@ -12,3 +12,5 @@ anthropic>=0.40
 websockets>=13.0
 regex>=2024.9
 boto3>=1.35
+redis>=5.0
+fakeredis>=2.20

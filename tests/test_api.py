@@ -52,14 +52,23 @@ def test_reset_demo_clears_tables(tmp_path, monkeypatch):
 def test_try_routes_malicious_input_to_honeypot(tmp_path, monkeypatch):
     from chameleon import router
     client = _client(tmp_path, monkeypatch)
-    monkeypatch.setattr(router, "handle_request", lambda fields: {
+    monkeypatch.setattr(router, "handle_request", lambda fields, **kw: {
         "decision": "malicious", "reason": "nano_only_jev_unavailable", "nano_score": 0.98,
-        "rule_id": None, "routed_to": "honeypot", "honeypot_reply": "Invalid search query."})
+        "rule_id": None, "routed_to": "honeypot", "honeypot_reply": None, "session_id": "s-1"})
+    import httpx
+    from chameleon.api import main as api_main
+    seen = {}
 
+    def _fake_get(url, params=None, timeout=None, headers=None):
+        seen.update(url=url, headers=headers)
+        return httpx.Response(200, text='{"results": "id | username | password_sha1"}')
+
+    monkeypatch.setattr(api_main.httpx, "get", _fake_get)
     body = client.post("/api/try", json={"target": "search", "inputs": {"q": "1 union select null--"}}).json()
 
     assert body["routed_to"] == "honeypot"
-    assert body["honeypot_reply"] == "Invalid search query."
+    assert seen["url"] == "http://127.0.0.1:8300/search" and seen["headers"] == {"X-Chameleon-Session": "s-1"}
+    assert body["honeypot_reply"] == "id | username | password_sha1"
     assert "app_response" not in body
 
 
@@ -68,12 +77,12 @@ def test_try_forwards_safe_input_to_the_app_and_flags_canary_leaks(tmp_path, mon
     from chameleon import router
     from chameleon.api import main as api_main
     client = _client(tmp_path, monkeypatch)
-    monkeypatch.setattr(router, "handle_request", lambda fields: {
+    monkeypatch.setattr(router, "handle_request", lambda fields, **kw: {
         "decision": "safe", "reason": "nano_only_jev_unavailable", "nano_score": 0.16,
         "rule_id": None, "routed_to": "app", "honeypot_reply": None})
     seen = {}
 
-    def _fake_get(url, params=None, timeout=None):
+    def _fake_get(url, params=None, timeout=None, **kw):
         seen.update(url=url, params=params)
         return httpx.Response(200, text='{"content": "root:x:0:0 api_key=CANARY-APIKEY-x"}')
 
@@ -97,12 +106,12 @@ def test_try_login_checks_both_fields_and_forwards_as_json(tmp_path, monkeypatch
     from chameleon.api import main as api_main
     client = _client(tmp_path, monkeypatch)
     judged = {}
-    monkeypatch.setattr(router, "handle_request", lambda fields: judged.update(fields) or {
+    monkeypatch.setattr(router, "handle_request", lambda fields, **kw: judged.update(fields) or {
         "decision": "safe", "reason": "r", "nano_score": 0.02, "rule_id": None,
         "routed_to": "app", "honeypot_reply": None, "session_id": None})
     sent = {}
 
-    def _fake_post(url, json=None, timeout=None):
+    def _fake_post(url, json=None, timeout=None, **kw):
         sent.update(url=url, json=json)
         return httpx.Response(200, text='{"ok": false}')
 
@@ -131,7 +140,7 @@ def test_reset_clears_linked_rows_without_foreign_key_errors(tmp_path, monkeypat
     store.set_status(conn, pid, "approved")
     conn.close()
 
-    assert client.post("/api/demo/reset").json() == {"ok": True}
+    assert client.post("/api/demo/reset").json()["ok"] is True
     assert client.get("/api/patches").json() == []
     assert client.get("/api/sessions").json() == []
 

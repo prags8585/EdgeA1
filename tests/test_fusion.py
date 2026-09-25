@@ -55,7 +55,7 @@ def test_malicious_when_jev_flags_even_if_nano_clears(tmp_path, monkeypatch):
 
     assert result["decision"] == "malicious"
     assert result["jev_score"] == 0.95
-    assert result["reason"] == "nano_or_jev"
+    assert result["reason"] == "jev_only" and result["flagged_by"] == ["jev"]
 
 
 def test_safe_when_both_clear(tmp_path, monkeypatch):
@@ -81,3 +81,25 @@ def test_malicious_when_approved_rule_matches_even_if_models_clear(tmp_path, mon
     assert result["decision"] == "malicious"
     assert result["reason"] == "rule_match"
     assert result["rule_id"] == "traversal-1"
+
+
+def test_jev_is_asked_first_with_the_named_fields(tmp_path, monkeypatch):
+    order = []
+    monkeypatch.setattr(fusion, "check_nano", lambda inputs: order.append("nano") or
+                        {"malicious": True, "score": 0.9, "worst_input_index": 1})
+    monkeypatch.setattr(jev_client, "check", lambda fields: order.append(("jev", fields)) or
+                        {"malicious": True, "score": 0.97, "attack_type": "sqli", "latency_ms": 80.0})
+
+    result = fusion.decide({"username": "admin' --", "password": "x"}, conn=_conn(tmp_path))
+
+    assert order == [("jev", {"username": "admin' --", "password": "x"}), "nano"]
+    assert result["reason"] == "jev_and_nano" and result["jev_attack_type"] == "sqli"
+    assert result["worst_field"] == "password"
+
+
+def test_jev_parse_handles_noul_and_choice_shapes():
+    parsed = jev_client.parse({"model": "jev-1.13", "answers": {
+        "is_attack": {"type": "noul", "noul": 0.93},
+        "attack_type": {"type": "choice", "probabilities": {"sqli": 0.8, "none": 0.2}}}})
+    assert parsed["malicious"] and parsed["score"] == 0.93 and parsed["attack_type"] == "sqli"
+    assert jev_client.parse({"answers": {"is_attack": {"probabilities": {"yes": 0.1, "no": 0.9}}}})["malicious"] is False

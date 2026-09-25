@@ -9,3 +9,5 @@ data/check/
 data/generated/
 *.db
 models/
+
+data/redis/

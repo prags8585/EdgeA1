@@ -17,8 +17,12 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from .. import autopatch, cloud_mirror, config, db, router
+from ..decoy.app import REPLY_FIELD
 from ..honeypot import deception
+from ..patch import integrate, redis_store
+from ..patch import store as patch_store
 from ..redteam import scenario as redteam_scenario
+from ..targets import SESSION_HEADER, TARGETS, forward
 
 app = FastAPI(title="Chameleon Edge dashboard")
 
@@ -30,6 +34,17 @@ def _conn():
     conn = db.get_connection()
     db.init_db(conn)
     return conn
+
+
+@app.on_event("startup")
+def _sync_patch_store():
+    """Copy any patches Redis hasn't seen yet, and make the app files match."""
+    conn = _conn()
+    try:
+        patch_store.backfill_redis(conn)
+        integrate.sync_active(conn)
+    finally:
+        conn.close()
 
 
 @app.get("/")
@@ -112,6 +127,30 @@ def patches(limit: int = 50):
         conn.close()
 
 
+@app.get("/api/patch-store")
+def patch_store_view(limit: int = 50):
+    """The Redis patch store: every patch with its rendered Python and test trail."""
+    stored = redis_store.patches(limit)
+    return {"redis": redis_store.health(), "patches": stored or []}
+
+
+@app.get("/api/infra")
+def infra():
+    """Which parts of the pipeline are up."""
+    def up(url: str) -> bool:
+        try:
+            return httpx.get(url, timeout=1.0).status_code < 500
+        except httpx.HTTPError:
+            return False
+    return {
+        "jev": {"configured": bool(config.JEV_API_KEY), "model": config.JEV_MODEL},
+        "redis": redis_store.health() or {"ok": False},
+        "decoy": {"url": config.DECOY_APP_URL, "up": up(f"{config.DECOY_APP_URL}/openapi.json")},
+        "gateway": {"url": config.GATEWAY_URL, "up": up(f"{config.GATEWAY_URL}/openapi.json")},
+        "app": {"url": config.DEMO_APP_URL, "up": up(f"{config.DEMO_APP_URL}/patches")},
+    }
+
+
 @app.get("/api/patches/{patch_id}/events")
 def patch_events(patch_id: str):
     conn = _conn()
@@ -182,33 +221,25 @@ def scenario_status():
     return status
 
 
-# Each demo-app screen, with the method, path, and fields it takes -- so a request
-# judged safe is forwarded exactly the way the real app would receive it.
-TARGETS = {
-    "login": ("POST", "/login", ("username", "password")),
-    "search": ("GET", "/search", ("q",)),
-    "files": ("GET", "/files", ("name",)),
-    "chat": ("POST", "/chat", ("message",)),
-}
-
-
 class TryRequest(BaseModel):
     target: str = Field(pattern="^(login|search|files|chat)$")
     inputs: dict[str, str]
 
 
-def _forward_to_app(target: str, inputs: dict[str, str]) -> dict:
-    method, path, _ = TARGETS[target]
-    url = f"{config.DEMO_APP_URL}{path}"
+def _forward(base_url: str, target: str, inputs: dict[str, str], headers: dict | None = None) -> dict:
     try:
-        if method == "GET":
-            resp = httpx.get(url, params=inputs, timeout=10)
-        else:
-            resp = httpx.post(url, json=inputs, timeout=10)
+        resp = forward(base_url, target, inputs, headers=headers, timeout=120)
     except httpx.HTTPError as exc:
-        return {"status": None, "body": f"demo app unreachable: {exc}", "canary_leaked": False}
+        return {"status": None, "body": f"{base_url} unreachable: {exc}", "canary_leaked": False}
     body = resp.text
     return {"status": resp.status_code, "body": body, "canary_leaked": "CANARY-" in body}
+
+
+def _decoy_text(target: str, body: str) -> str:
+    try:
+        return json.loads(body)[REPLY_FIELD[target]]
+    except (ValueError, KeyError, TypeError):
+        return body
 
 
 @app.post("/api/try")
@@ -221,7 +252,7 @@ def try_request(req: TryRequest):
     if not any(v.strip() for v in inputs.values()):
         raise HTTPException(status_code=422, detail="empty request")
     try:
-        result = router.handle_request(inputs)
+        result = router.handle_request(inputs, respond=False)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail=f"a model service is unreachable: {exc}") from exc
     out = {
@@ -229,6 +260,11 @@ def try_request(req: TryRequest):
         "decision": result["decision"],
         "reason": result["reason"],
         "nano_score": result["nano_score"],
+        "jev_score": result.get("jev_score"),
+        "jev_attack_type": result.get("jev_attack_type"),
+        "jev_latency_ms": result.get("jev_latency_ms"),
+        "jev_error": result.get("jev_error"),
+        "flagged_by": result.get("flagged_by"),
         "rule_id": result.get("rule_id"),
         "routed_to": result["routed_to"],
         "session_id": result.get("session_id"),
@@ -236,9 +272,12 @@ def try_request(req: TryRequest):
         "patch_job_id": result.get("patch_job_id"),
     }
     if result["routed_to"] == "honeypot":
-        out["honeypot_reply"] = result["honeypot_reply"]
+        # What the gateway does with a 307: the attacker lands on the decoy app.
+        decoy = _forward(config.DECOY_APP_URL, req.target, inputs, headers={SESSION_HEADER: result["session_id"]})
+        out["decoy_response"] = {**decoy, "url": f"{config.DECOY_APP_URL}{TARGETS[req.target][1]}"}
+        out["honeypot_reply"] = _decoy_text(req.target, decoy["body"]) if decoy["status"] == 200 else decoy["body"]
     elif result["routed_to"] == "app":
-        out["app_response"] = _forward_to_app(req.target, inputs)
+        out["app_response"] = _forward(config.DEMO_APP_URL, req.target, inputs)
     return out
 
 
@@ -309,7 +348,9 @@ def reset_demo():
                       "comparisons", "honeytokens", "patch_jobs", "runs"):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
-        return {"ok": True}
+        retired = redis_store.deactivate_all() or 0  # stop enforcing; the history stays in Redis
+        integrate.sync_active(conn)  # and take the code patches back out of the apps
+        return {"ok": True, "patches_retired": retired}
     finally:
         conn.close()
 

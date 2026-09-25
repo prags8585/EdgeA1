@@ -21,7 +21,8 @@ def _hash_inputs(field_inputs: dict[str, str]) -> str:
     return hashlib.sha256(joined.encode()).hexdigest()
 
 
-def handle_request(field_inputs: dict[str, str], conn=None, auto_patch: bool = True) -> dict:
+def handle_request(field_inputs: dict[str, str], conn=None, auto_patch: bool = True,
+                   respond: bool = True) -> dict:
     """field_inputs: e.g. {"q": "..."} or {"username": "...", "password": "..."}.
 
     Three outcomes for an attack:
@@ -31,6 +32,10 @@ def handle_request(field_inputs: dict[str, str], conn=None, auto_patch: bool = T
       - otherwise, if the check model flags it -> the honeypot answers as if the
         attack worked, and (auto_patch) a patch job starts for this exact payload.
     Safe requests go to the app.
+
+    respond=False opens the honeypot session but leaves the reply to the caller
+    -- the gateway and dashboard send the attacker to the decoy app, which
+    writes it.
     """
     owns_conn = conn is None
     conn = conn or db.get_connection()
@@ -60,14 +65,18 @@ def handle_request(field_inputs: dict[str, str], conn=None, auto_patch: bool = T
         elif result["decision"] == "malicious":
             routed_to = "honeypot"
             session_id = honeypot_session.start_session(session_type="web", conn=conn)
-            payload = " | ".join(f"{k}={v}" for k, v in field_inputs.items())
-            honeypot_reply = honeypot_session.respond(
-                session_id, field=",".join(field_inputs), payload=payload, conn=conn,
-            )
+            if respond:
+                payload = " | ".join(f"{k}={v}" for k, v in field_inputs.items())
+                honeypot_reply = honeypot_session.respond(
+                    session_id, field=",".join(field_inputs), payload=payload, conn=conn,
+                )
             if auto_patch:
                 field = result.get("worst_field") or next(iter(field_inputs))
-                patch_job_id = autopatch.submit(
-                    conn, field, field_inputs[field], deception.attack_type(field, field_inputs[field]))
+                # Jev's label when it gave a specific one, else our own heuristic.
+                kind = result.get("jev_attack_type")
+                if kind in (None, "none", "other"):
+                    kind = deception.attack_type(field, field_inputs[field])
+                patch_job_id = autopatch.submit(conn, field, field_inputs[field], kind)
         else:
             routed_to = "app"
     finally:

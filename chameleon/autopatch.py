@@ -18,7 +18,9 @@ import uuid
 import pandas as pd
 
 from . import config, db
+from .patch import integrate
 from .patch import pipeline as patch_pipeline
+from .patch import redis_store
 from .patch import rules as rules_engine
 from .patch import store as patch_store
 
@@ -107,6 +109,11 @@ def run_job(job_id: str, db_path) -> None:
             _finish(conn, job_id, "error", None, f"{type(exc).__name__}: {str(exc)[:200]}")
             return
         _finish(conn, job_id, result["status"], result.get("patch_id"), result.get("feedback"))
+        if result["status"] == "approved":
+            # Record which attack taught this patch, then re-render so the code says so too.
+            redis_store.annotate(result["patch_id"], learned_from=job["payload"], learned_field=job["field"],
+                                 patch_job_id=job_id)
+            integrate.sync_active(conn)
     finally:
         conn.close()
 

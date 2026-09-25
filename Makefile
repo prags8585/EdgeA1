@@ -18,7 +18,16 @@ serve-check:
 	$(PY) -m uvicorn chameleon.check.serve:app --host 127.0.0.1 --port 8010
 
 serve-demo:
-	$(PY) -m uvicorn chameleon.demoapp.main:app --host 127.0.0.1 --port 8200
+	$(PY) -m uvicorn chameleon.demoapp.main:app --host 127.0.0.1 --port 8200 --reload --reload-dir chameleon/apps
+
+serve-decoy:
+	$(PY) -m uvicorn chameleon.decoy.app:app --host 127.0.0.1 --port 8300
+
+serve-gateway:
+	$(PY) -m uvicorn chameleon.gateway.app:app --host 127.0.0.1 --port 8000
+
+serve-redis:
+	scripts/serve_redis.sh
 
 serve-dashboard:
 	$(PY) -m uvicorn chameleon.api.main:app --host 127.0.0.1 --port 8100
