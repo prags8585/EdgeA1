@@ -218,7 +218,7 @@
 
   <nav class="views">
     <button data-view="home" class="on">HOME</button>
-    <button data-view="compare">COMPARISONS</button>
+    <button data-view="compare">METRICS</button>
   </nav>
 
   <div id="view-home">
@@ -307,7 +307,7 @@
 
   <div id="view-compare" hidden>
     <div class="cmp-bar">
-      <button class="switch" id="cmp-toggle" aria-pressed="false"><span class="knob"></span><span id="cmp-toggle-label">COMPARE_WITH_AWS: OFF</span></button>
+      <button class="switch" id="cmp-toggle" aria-pressed="false"><span class="knob"></span><span id="cmp-toggle-label">METRICS_WITH_AWS: OFF</span></button>
       <div class="cmp-model">Same model on both sides: <b>Qwen3-Next-80B-A3B</b> &middot; Nano: NVFP4 on the GB10 &middot; AWS: Bedrock on-demand, <span id="cmp-region">us-west-2</span></div>
     </div>
     <div class="cmp-warn" id="cmp-warn" hidden></div>
@@ -326,7 +326,7 @@
     <section class="cmp-panel">
       <div class="cmp-title">Cost at scale &mdash; monthly cost vs attacks per day</div>
       <div class="legend" id="chart-legend"></div>
-      <div class="chart-wrap" id="chart-wrap"><div class="chart-empty">Turn comparison on and send a few requests from Home to project costs.</div></div>
+      <div class="chart-wrap" id="chart-wrap"><div class="chart-empty">Turn METRICS_WITH_AWS on and send a few requests from Home to project costs.</div></div>
       <div class="cmp-notes" id="chart-notes"></div>
       <details class="cmp-table-toggle"><summary>Show as a table</summary><div class="tbl-scroll"><table id="proj-table"></table></div></details>
     </section>
@@ -686,7 +686,7 @@ function showView(name) {
   $('view-home').hidden = name !== 'home';
   $('view-compare').hidden = name !== 'compare';
   document.querySelectorAll('.views button').forEach((b) => b.classList.toggle('on', b.dataset.view === name));
-  try { history.replaceState(null, '', name === 'compare' ? '#compare' : '#'); } catch {}
+  try { history.replaceState(null, '', name === 'compare' ? '#metrics' : '#'); } catch {}
   if (name === 'compare') refreshCompare();
 }
 
@@ -699,10 +699,6 @@ function fmtUsd(v) {
   if (v >= 1) return `$${v.toFixed(2)}`;
   if (v >= 0.01) return `$${v.toFixed(3)}`;
   return `$${v.toFixed(Math.min(10, 1 - Math.floor(Math.log10(v))))}`;
-}
-function fmtBytes(v) {
-  if (!v) return '0 B';
-  return v >= 1e6 ? `${(v / 1e6).toFixed(1)} MB` : v >= 1e3 ? `${(v / 1e3).toFixed(1)} KB` : `${v} B`;
 }
 const fmtCount = (v) => (v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${+(v / 1e3).toFixed(1)}k` : String(Math.round(v)));
 
@@ -737,8 +733,6 @@ function renderHalves(d) {
     metric('Tokens per request', tokens(n), 'in → out'),
     metric('Cost per request', fmtUsd(n.cost_per_request_usd), 'electricity at measured GPU power', costN),
     metric('Cost so far', fmtUsd(n.cost_total_usd), 'marginal; the box itself is a fixed cost (see chart)'),
-    metric('Attack data sent off-box', fmtBytes(n.bytes_sent_off_box), 'payloads, logs and patches stay on-site', 'PRIVATE'),
-    metric('Works with internet cut', 'YES', 'honeypot, patching and verification keep running'),
     metric('Energy per request', n.energy_j_avg == null ? '–' : `${n.energy_j_avg.toFixed(1)} J`,
            n.power_w_avg == null ? 'measuring…' : `at ${n.power_w_avg.toFixed(1)} W average GPU draw`),
   );
@@ -750,8 +744,6 @@ function renderHalves(d) {
            a.enterprise_cost_per_request_usd == null ? 'on-demand price' :
            `on-demand · ${fmtUsd(a.enterprise_cost_per_request_usd)} with ${Math.round(d.state.enterprise_discount * 100)}% enterprise discount`, costA),
     metric('Cost so far', fmtUsd(a.cost_total_usd), 'billed per token'),
-    metric('Attack data sent off-box', fmtBytes(a.bytes_sent_off_box), 'every prompt, including attacker payloads'),
-    metric('Works with internet cut', 'NO', 'needs the network to reach Bedrock'),
     metric('Energy per request', 'not visible', 'billed per token; the power is AWS\'s'),
   );
 }
@@ -771,7 +763,7 @@ const svgEl = (tag, attrs = {}) => {
 function drawChart(proj) {
   const wrap = $('chart-wrap');
   if (!proj) {
-    wrap.replaceChildren(el('div', 'chart-empty', 'Turn comparison on and send a few requests from Home to project costs.'));
+    wrap.replaceChildren(el('div', 'chart-empty', 'Turn METRICS_WITH_AWS on and send a few requests from Home to project costs.'));
     $('chart-legend').replaceChildren(); $('chart-notes').replaceChildren(); $('proj-table').replaceChildren();
     return;
   }
@@ -886,7 +878,7 @@ function renderPairs(rows) {
   const cols = ['Time', 'Role', 'Input', 'Tokens in', 'Out: Nano', 'Out: AWS', 'Nano ms', 'AWS ms', 'Nano $', 'AWS $'];
   const head = el('tr'); cols.forEach((c, i) => head.append(el('th', i < 3 ? 'l' : null, c)));
   if (!rows.length) {
-    const tr = el('tr'); const td = el('td', 'l', 'No paired requests yet.'); td.colSpan = cols.length; tr.append(td);
+    const tr = el('tr'); const td = el('td', 'l', 'No requests measured yet.'); td.colSpan = cols.length; tr.append(td);
     table.replaceChildren(head, tr); return;
   }
   table.replaceChildren(head, ...rows.map((r) => {
@@ -912,11 +904,11 @@ async function refreshCompare() {
   t.disabled = !d.state.configured;
   t.setAttribute('aria-pressed', String(d.state.enabled));
   $('cmp-toggle-label').textContent = !d.state.configured ? 'AWS NOT CONFIGURED'
-    : `COMPARE_WITH_AWS: ${d.state.enabled ? 'ON' : 'OFF'}`;
+    : `METRICS_WITH_AWS: ${d.state.enabled ? 'ON' : 'OFF'}`;
   $('cmp-region').textContent = d.state.region;
   const warn = $('cmp-warn');
   warn.hidden = !d.state.enabled;
-  warn.textContent = `Comparison mode is ON: every Qwen request is also sent to AWS Bedrock, so ${fmtBytes(d.aws.bytes_sent_off_box)} of attack data has left the building so far. Turn it off for pure edge mode.`;
+  warn.textContent = 'METRICS_WITH_AWS is ON: every Qwen request is also sent to AWS Bedrock to measure it. Turn it off for pure edge mode.';
   renderHalves(d);
   drawChart(d.projection);
   renderPairs(d.recent);
@@ -926,7 +918,7 @@ async function toggleCompare() {
   const on = $('cmp-toggle').getAttribute('aria-pressed') !== 'true';
   const resp = await fetch('/api/compare/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                    body: JSON.stringify({ enabled: on }) });
-  if (!resp.ok) log(`comparison mode: ${(await resp.json()).detail}`, 'warn');
+  if (!resp.ok) log(`metrics mode: ${(await resp.json()).detail}`, 'warn');
   refreshCompare();
 }
 
@@ -935,7 +927,7 @@ document.querySelectorAll('.views button').forEach((b) => b.addEventListener('cl
 $('cmp-toggle').addEventListener('click', toggleCompare);
 window.addEventListener('resize', () => { if (lastCompare && !$('view-compare').hidden) drawChart(lastCompare.projection); });
 setInterval(refreshCompare, 3000);
-if (location.hash === '#compare') showView('compare');
+if (['#metrics', '#compare'].includes(location.hash)) showView('compare');
 for (const p of PRESETS) {
   const b = el('button', `chip ${p.cls || ''}`, p.label);
   b.addEventListener('click', async () => {
