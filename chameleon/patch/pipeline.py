@@ -26,16 +26,23 @@ def run(
     benign_examples: list[str],
     writer_model: str,
     field: str = "q",
-    max_retries: int = 3,
+    max_retries: int = 5,
 ) -> dict:
     feedback = None
+    history: list[str] = []
     patch_id = None
     rule = None
 
     for attempt in range(1, max_retries + 1):
+        # The writer sees every earlier failure, not just the last one -- with only
+        # the latest feedback it was observed fixing one problem and regressing on
+        # another it had already solved.
+        if feedback:
+            history.append(feedback)
         rule = patch_writer.write_rule(
             attack_type, attack_payloads, benign_examples,
-            rule_id=f"{attack_type}-{attempt}", feedback=feedback, field=field,
+            rule_id=f"{attack_type}-{attempt}", field=field,
+            feedback="\n\n".join(f"Attempt {k}: {h}" for k, h in enumerate(history, 1)) or None,
         )
         patch_id = store.propose(conn, rule, writer_model)
 
@@ -47,6 +54,19 @@ def run(
             feedback = (
                 f"The rule did not block {len(missed)} of the {len(attack_payloads)} attack payloads on replay. "
                 f"Your pattern was {rule['pattern']!r}. It missed: {_sample(missed)}"
+            )
+            continue
+
+        bypassed = patch_tests.encoding_bypasses(rule, attack_payloads, field=field)
+        store.log_event(conn, patch_id, "encoding_test", "fail" if bypassed else "pass",
+                         f"URL-encoded forms of {len(bypassed)} payloads slip through" if bypassed else None)
+        if bypassed:
+            store.set_status(conn, patch_id, "rejected")
+            feedback = (
+                f"Your pattern {rule['pattern']!r} (type {rule['type']!r}) blocks the raw payloads but not "
+                f"their URL-encoded forms, e.g. {patch_tests.url_encode_all(bypassed[0])!r}. Attackers "
+                "routinely encode. Use type \"normalize_then_deny\": it URL-decodes the input repeatedly "
+                "and lowercases it before matching, so write the pattern against decoded, lowercase text."
             )
             continue
 
@@ -68,14 +88,23 @@ def run(
             store.log_event(conn, patch_id, "redos_test", "fail", f"timed out on {slow_input[:40]!r}...")
             store.set_status(conn, patch_id, "rejected")
             feedback = (
-                f"Your pattern {rule['pattern']!r} took too long on a long input starting "
-                f"{slow_input[:40]!r} (catastrophic backtracking). Avoid nested or overlapping "
-                "quantifiers like (a+)+, (\\w+\\s?)*, or (.*x){n}."
+                f"Your pattern {rule['pattern']!r} exceeded the 50 ms budget on a "
+                f"{len(slow_input)}-character input of repeated {slow_input[:3]!r} (backtracking). "
+                "Avoid nested or overlapping quantifiers like (a+)+, (\\w|\\d)+, or (.*x){n}, and "
+                "open-ended repeats like \\.{2,} next to other quantified groups; match fixed tokens "
+                "(like \\.\\./) instead."
             )
             continue
         store.log_event(conn, patch_id, "redos_test", "pass")
 
-        verdict = patch_verifier.verify(rule, attack_payloads[:5])
+        measurements = {
+            "blocks_all_captured_payloads": True,
+            "blocks_url_encoded_forms_of_captured_payloads": True,
+            "false_positives_on_benign_sample": f"0 of {len(benign_examples)}",
+            "worst_case_match_ms_on_2kb_adversarial_inputs": patch_tests.worst_case_ms(rule),
+            "runtime_budget_ms": patch_tests.REDOS_BUDGET_S * 1000,
+        }
+        verdict = patch_verifier.verify(rule, attack_payloads[:5], measurements)
         store.log_event(conn, patch_id, "verifier", "pass" if verdict["approved"] else "fail",
                          "; ".join(verdict["reasons"]) or None)
         if not verdict["approved"]:

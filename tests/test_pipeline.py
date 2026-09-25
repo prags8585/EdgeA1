@@ -4,7 +4,7 @@ from chameleon.patch import verifier as patch_verifier
 from chameleon.patch import writer as patch_writer
 
 GOOD_RULE = {
-    "id": "sqli-1", "field": "q", "type": "regex_deny",
+    "id": "sqli-1", "field": "q", "type": "normalize_then_deny",
     "pattern": r"union\s+select", "description": "blocks sqli", "attack_type": "sqli",
 }
 USELESS_RULE = {
@@ -91,6 +91,23 @@ def test_retry_feedback_names_the_payloads_the_rule_missed(tmp_path, monkeypatch
     assert USELESS_RULE["pattern"] in feedback_seen[1]
 
 
+def test_retry_feedback_accumulates_every_earlier_failure(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    feedback_seen = []
+
+    def _write_rule(*a, feedback=None, **k):
+        feedback_seen.append(feedback)
+        return USELESS_RULE
+
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
+    pipeline.run(
+        conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+        benign_examples=BENIGN, writer_model="writer-model", max_retries=3,
+    )
+
+    assert "Attempt 1:" in feedback_seen[2] and "Attempt 2:" in feedback_seen[2]
+
+
 def test_pipeline_rejects_redos_prone_rule_before_the_verifier_sees_it(tmp_path, monkeypatch):
     conn = _conn(tmp_path)
     # Blocks the attacks, passes normal traffic -- but backtracks catastrophically.
@@ -115,6 +132,43 @@ def test_pipeline_rejects_redos_prone_rule_before_the_verifier_sees_it(tmp_path,
     assert result["status"] == "approved" and result["attempts"] == 2
     assert verified == [GOOD_RULE]
     assert "backtracking" in feedback_seen[1]
+
+
+def test_pipeline_rejects_rule_bypassed_by_url_encoding(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    raw_rule = {**GOOD_RULE, "id": "sqli-raw", "type": "regex_deny"}
+    rules_in_order = [raw_rule, GOOD_RULE]
+    feedback_seen = []
+
+    def _write_rule(*a, feedback=None, **k):
+        feedback_seen.append(feedback)
+        return rules_in_order.pop(0)
+
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
+    monkeypatch.setattr(patch_verifier, "verify", lambda *a, **k: {"approved": True, "reasons": [], "risks": []})
+
+    result = pipeline.run(
+        conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+        benign_examples=BENIGN, writer_model="writer-model",
+    )
+
+    assert result["status"] == "approved" and result["attempts"] == 2
+    assert "normalize_then_deny" in feedback_seen[1]
+
+
+def test_verifier_receives_measured_facts(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    captured = {}
+    monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
+    monkeypatch.setattr(patch_verifier, "verify",
+                        lambda rule, sample, measurements=None: captured.update(measurements) or
+                        {"approved": True, "reasons": [], "risks": []})
+
+    pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                 benign_examples=BENIGN, writer_model="writer-model")
+
+    assert captured["false_positives_on_benign_sample"] == f"0 of {len(BENIGN)}"
+    assert captured["worst_case_match_ms_on_2kb_adversarial_inputs"] < captured["runtime_budget_ms"]
 
 
 def test_pipeline_rejects_when_verifier_disapproves(tmp_path, monkeypatch):

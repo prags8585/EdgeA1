@@ -41,6 +41,20 @@ def test_live_rule_match_fails_closed_on_timeout():
     assert rules.search(r"(\w|\d)+$", "a" * 20_000 + "!") is True
 
 
+def test_url_encode_all_encodes_dots_and_slashes():
+    assert patch_tests.url_encode_all("../etc") == "%2e%2e%2fetc"
+
+
+def test_raw_regex_rule_is_bypassed_by_url_encoding():
+    raw = {**SQLI_RULE, "field": "*", "pattern": r"\.\./", "type": "regex_deny"}
+    assert patch_tests.encoding_bypasses(raw, ["../../etc/passwd"]) == ["../../etc/passwd"]
+
+
+def test_normalizing_rule_survives_url_encoding():
+    normalized = {**SQLI_RULE, "field": "*", "pattern": r"\.\./", "type": "normalize_then_deny"}
+    assert patch_tests.encoding_bypasses(normalized, ["../../etc/passwd"]) == []
+
+
 def test_normal_traffic_test_passes_with_no_examples():
     ok, fpr = patch_tests.normal_traffic_test(SQLI_RULE, [])
     assert ok and fpr == 0.0

@@ -67,6 +67,13 @@ def check_rule(rule, shown_attacks, shown_benign, unseen_benign, field) -> tuple
             f"The rule did not block {len(missed)} of the {len(shown_attacks)} attack payloads on replay. "
             f"Your pattern was {rule['pattern']!r}. It missed: {', '.join(repr(m) for m in missed[:10])}"
         )
+    bypassed = patch_tests.encoding_bypasses(rule, shown_attacks, field=field)
+    if bypassed:
+        return False, (
+            f"Your pattern {rule['pattern']!r} (type {rule['type']!r}) blocks the raw payloads but not "
+            f"their URL-encoded forms, e.g. {patch_tests.url_encode_all(bypassed[0])!r}. Use type "
+            "\"normalize_then_deny\", which URL-decodes repeatedly and lowercases before matching."
+        )
     fp = patch_tests.false_positives(rule, shown_benign + unseen_benign, field=field)
     shown_fp = [t for t in fp if t in set(shown_benign)]
     unseen_fpr = (len(fp) - len(shown_fp)) / max(1, len(unseen_benign))
