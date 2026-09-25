@@ -1,0 +1,47 @@
+{
+  "machine": "spark-ec8",
+  "gpu": "NVIDIA GB10",
+  "base_model": "Qwen/Qwen2.5-7B-Instruct",
+  "method": "LoRA r=16 alpha=32, bf16, all attention+MLP projections",
+  "train_examples": 207,
+  "val_examples": 23,
+  "epochs": 2,
+  "train_seconds": 1060.0,
+  "peak_gpu_memory_gib": 20.42,
+  "final_train_loss": 0.6893,
+  "val_loss": 0.6415,
+  "loss_history": [
+    {
+      "loss": 0.9589,
+      "step": 5
+    },
+    {
+      "loss": 0.7466,
+      "step": 10
+    },
+    {
+      "eval_loss": 0.6784,
+      "step": 13
+    },
+    {
+      "loss": 0.6309,
+      "step": 15
+    },
+    {
+      "loss": 0.5645,
+      "step": 20
+    },
+    {
+      "loss": 0.5704,
+      "step": 25
+    },
+    {
+      "eval_loss": 0.6415,
+      "step": 26
+    },
+    {
+      "eval_loss": 0.6415,
+      "step": 26
+    }
+  ]
+}
