@@ -1,0 +1,19 @@
+{
+  "teacher_model": "writer",
+  "seed": 20260925,
+  "attempts": 500,
+  "kept": 230,
+  "rejected": 270,
+  "max_unseen_fpr": 0.01,
+  "train_families": [
+    "jailbreak",
+    "prompt-injection",
+    "sqli",
+    "xss"
+  ],
+  "heldout_eval_families": [
+    "cmdi",
+    "path-traversal"
+  ],
+  "seconds": 3134.0
+}
