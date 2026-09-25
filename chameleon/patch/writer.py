@@ -96,13 +96,18 @@ def write_rule(
     field: str = "*",
     model: str | None = None,
     uds: str | None = None,
+    temperature: float | None = None,
 ) -> dict:
+    """temperature=None keeps the model's own sampling defaults (production:
+    variety across retries helps); evals pass 0 for reproducible comparisons."""
     messages = build_messages(attack_type, attack_payloads, benign_examples, rule_id, field, feedback)
+    sampling = {} if temperature is None else {"temperature": temperature}
     text = llm.timed_call(
         role="writer",
         model=model or config.WRITER_MODEL_NAME,
         messages=messages,
         uds=uds,
+        **sampling,
         response_format={"type": "json_schema", "json_schema": {"name": "rule", "schema": RULE_SCHEMA, "strict": True}},
         placement_reason="default_nano",
         max_tokens=MAX_OUTPUT_TOKENS,

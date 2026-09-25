@@ -63,13 +63,13 @@ def build_tasks(data_dir: Path, per_family: int, seed: int) -> list[dict]:
     return tasks
 
 
-def score(task: dict, model: str, uds: str | None = None) -> dict:
+def score(task: dict, model: str, uds: str | None = None, temperature: float | None = 0.0) -> dict:
     field = task["field"]
     check_field = "q" if field == "*" else field
     try:
         rule = patch_writer.write_rule(
             task["family"], task["shown_attacks"], task["shown_benign"],
-            rule_id=f"{task['family']}-eval-{task['i']}", field=field, model=model, uds=uds,
+            rule_id=f"{task['family']}-eval-{task['i']}", field=field, model=model, uds=uds, temperature=temperature,
         )
     except Exception as exc:
         return {"valid": False, "error": str(exc)[:200]}
@@ -112,6 +112,8 @@ def main() -> None:
                         help="reach MODEL via a vLLM backend socket (needed for LoRA adapters behind ZRT)")
     parser.add_argument("--per-family", type=int, default=40)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--temperature", type=float, default=0.0,
+                        help="0 = greedy, reproducible (single-sample sampled evals varied 72%%-90%% valid on the same model)")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--data", type=Path, default=ROOT / "data" / "check")
     parser.add_argument("--out", type=Path, default=ROOT / "results" / "finetune_eval.json")
@@ -119,12 +121,13 @@ def main() -> None:
 
     tasks = build_tasks(args.data, args.per_family, args.seed)
     report = {"eval_families": sorted(EVAL_FAMILIES), "tasks_per_family": args.per_family,
+              "temperature": args.temperature,
               "max_unseen_fpr": MAX_UNSEEN_FPR, "models": {}}
 
     sockets = dict(item.split("=", 1) for item in args.uds)
     for model in args.models:
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            results = list(pool.map(lambda t: score(t, model, sockets.get(model)), tasks))
+            results = list(pool.map(lambda t: score(t, model, sockets.get(model), args.temperature), tasks))
         by_family = {
             fam: summarize([r for r, t in zip(results, tasks) if t["family"] == fam]) for fam in EVAL_FAMILIES
         }
