@@ -1,5 +1,5 @@
 {
-  "seconds": 57.9,
+  "seconds": 191.2,
   "by_phase": {
     "benign": {
       "n": 20,
@@ -19,36 +19,36 @@
     },
     "traversal_wave_2": {
       "n": 10,
-      "rerouted_to_honeypot": 0
+      "rerouted_to_honeypot": 6
     }
   },
   "wave1_detection_rate": 0.0,
-  "wave2_detection_rate": 0.0,
-  "patch_status": "rejected",
+  "wave2_detection_rate": 0.6,
+  "patch_status": "approved",
   "patch_attempts": 5,
   "patch_rule": {
-    "id": "path-traversal-5",
+    "id": "path-traversal-4",
     "field": "name",
     "type": "normalize_then_deny",
-    "pattern": "(?:\\.\\./|/{2,}|\\.\\.|^\\.|\\.+$|web-inf/web\\.xml|/iii\\{file\\}|0x2e0x2e|%2e%2e|%2f)",
-    "description": "Blocks common path traversal patterns including dot sequences, double slashes, web-inf/web.xml, /iii{file}, hex-encoded dots, and URL-encoded separators after normalization and lowercasing.",
+    "pattern": "(?:\\.\\./|/\\.\\./|//+\\.\\./|0x2e0x2e|\\.\\.{2,}|web-inf/web\\.xml|/iii\\{file\\}|\\.\\.{3,}|/{2,}\\.\\./|\\.\\./\\.\\./)",
+    "description": "Blocks normalized path traversal attempts including redundant dots, double slashes, hex-encoded dots, and known malicious paths like 'web-inf/web.xml' or '/iii{file}'.",
     "attack_type": "path-traversal"
   },
   "sample_honeypot_replies": [
     {
       "phase": "sqli",
       "attack": "-3084%')) order by 1--",
-      "reply": "Invalid search query. Please enter a valid product name or keyword."
+      "reply": "Invalid search query. Please try a different product name or keyword."
     },
     {
       "phase": "sqli",
       "attack": "1 and 9198=9198--",
-      "reply": "Invalid search query. Try searching for products like \"blue shirt\" or \"red shoes\"."
+      "reply": "Invalid search query. Try searching for \"blue shirt\" or \"red shoes\"."
     },
     {
       "phase": "sqli",
       "attack": "1'))) and 6510=(select count(*) from sysusers as sys1,sysusers as sys2,sysusers as sys3,sysusers as sys4,sysusers as sys",
-      "reply": "We couldn't find any products matching that search. Try browsing our collection: blue shirt, red shoes, or green hat."
+      "reply": "Invalid search query. Please try again with a product name like \"blue shirt\" or \"red shoes\"."
     },
     {
       "phase": "sqli",
@@ -58,12 +58,152 @@
     {
       "phase": "sqli",
       "attack": "1' and 6055=ctxsys.drithsx.sn(6055,(chr(113)||chr(113)||chr(112)||chr(106)||chr(113)||(select (case when (6055=6055) the",
-      "reply": "Invalid search query. Please try again with a valid product name or keyword."
+      "reply": "Invalid search query. Please try again with a product name or category."
     },
     {
       "phase": "sqli",
       "attack": "1'||(select 'neqi' where 6873=6873 union all select null,null,null,null,null,null,null--",
-      "reply": "Invalid search query. Please try again with a product name or keyword."
+      "reply": "Invalid search query. Please try again with a product name or category."
+    }
+  ],
+  "approved_rule_generalization": {
+    "unseen_heldout_payloads": 280,
+    "recall": 0.7821,
+    "benign_requests": 6434,
+    "false_positives": 0
+  },
+  "patch_events": [
+    {
+      "version": 1,
+      "stage": "replay_test",
+      "result": "fail",
+      "reason": "did not block 2/10 attack payloads"
+    },
+    {
+      "version": 2,
+      "stage": "replay_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 2,
+      "stage": "encoding_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 2,
+      "stage": "normal_traffic_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 2,
+      "stage": "redos_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 2,
+      "stage": "verifier",
+      "result": "fail",
+      "reason": "confirmed false positives: 'project/web-inf/web.xml.backup'"
+    },
+    {
+      "version": 3,
+      "stage": "replay_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 3,
+      "stage": "encoding_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 3,
+      "stage": "normal_traffic_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 3,
+      "stage": "redos_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 3,
+      "stage": "verifier",
+      "result": "fail",
+      "reason": "confirmed false positives: '...example.com'"
+    },
+    {
+      "version": 4,
+      "stage": "replay_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 4,
+      "stage": "encoding_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 4,
+      "stage": "normal_traffic_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 4,
+      "stage": "redos_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 4,
+      "stage": "verifier",
+      "result": "fail",
+      "reason": "confirmed bypasses: '..\\\\..\\\\'"
+    },
+    {
+      "version": 5,
+      "stage": "replay_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 5,
+      "stage": "encoding_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 5,
+      "stage": "normal_traffic_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 5,
+      "stage": "redos_test",
+      "result": "pass",
+      "reason": null
+    },
+    {
+      "version": 5,
+      "stage": "verifier",
+      "result": "fail",
+      "reason": "confirmed false positives: 'This is a file named web-inf/web.xml.txt', 'The project includes a directory called web-inf/web.xml_backup'"
+    },
+    {
+      "version": 4,
+      "stage": "approved_with_known_bypasses",
+      "result": "pass",
+      "reason": "'..\\\\..\\\\'"
     }
   ]
 }
