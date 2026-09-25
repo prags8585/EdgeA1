@@ -102,15 +102,16 @@ uname -m; nvidia-smi; zrt status; zrt models     # sanity check
 zrt pull hf:nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4   # honeypot + patch writer, ~51 GB
 zrt pull hf:google/gemma-4-12B-it                       # patch verifier, ~24 GB
 
-# both are served behind ONE shared proxy on :8080, routed by model name
-# (not one port per model -- see HANDOFF.md section 5.4 for why)
-zrt serve hf:nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4 --label writer --extra '--max-model-len=8192'
-zrt serve hf:google/gemma-4-12B-it --label verifier --extra '--max-model-len=8192'
+# Serves both behind ONE shared proxy on :8080, routed by model name (not one
+# port per model -- see HANDOFF.md 5.4), writer first, then verifier.
+scripts/serve_models.sh
 ```
 
-Two gotchas we hit and fixed (full detail in `HANDOFF.md` section 5.4):
-- Right after any `zrt stop`, a fresh `zrt serve` can register with the proxy and have the proxy deregister it 2-3 seconds later even though the backend is fine underneath — fully verify zero processes and an empty `zrt services` table before re-serving.
-- `zrt serve` doesn't bound the context window by default; an 80B model defaulted to `max_model_len=262144` and silently OOM'd mid-startup. Bound it with `--extra '--max-model-len=8192'`.
+Every flag in `scripts/serve_models.sh` fixed a real failure we hit on the Nano (full detail in `HANDOFF.md` sections 5.4 and 6.4):
+- **Context length:** `zrt serve` doesn't bound it by default. The 80B model defaulted to `max_model_len=262144` and silently OOM'd mid-startup, so we pass `--extra '--max-model-len=8192'`.
+- **Kernel compilation:** on first run FlashInfer JIT-compiles CUDA kernels with ~20 parallel `nvcc` jobs, and one got OOM-killed next to the loaded model. `MAX_JOBS=4` fixes it. The first writer start takes ~15–20 min; the kernels are cached after that.
+- **Memory split:** auto-sizing gave the writer 79 GB, leaving the verifier too little host RAM (CPU and GPU share the same 121 GB). We now set writer 0.45 and verifier 0.25 explicitly.
+- **Proxy race:** right after a `zrt stop`, a fresh `zrt serve` can be deregistered by the proxy 2–3 seconds later even though the backend underneath is fine. The script refuses to start unless `zrt services` is empty.
 
 To view the dashboard from a laptop: `ssh -L 8100:127.0.0.1:8100 hpX@<tailscale-ip>`, then open `http://127.0.0.1:8100`.
 

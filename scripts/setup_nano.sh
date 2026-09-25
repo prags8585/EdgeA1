@@ -33,9 +33,8 @@ cat <<'EOF'
 Setup complete. Next steps (see README.md "ZGX Nano setup" for the exact
 commands and known gotchas):
 
-  1. Serve both LLMs (each in its own tmux session):
-       zrt serve hf:nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4 --label writer --extra '--max-model-len=8192'
-       zrt serve hf:google/gemma-4-12B-it --label verifier --extra '--max-model-len=8192'
+  1. Serve both LLMs (first run ~20 min: CUDA kernels compile once):
+       scripts/serve_models.sh
 
   2. In separate tmux sessions:
        make serve-check       # :8010
