@@ -9,6 +9,10 @@ from chameleon.demoapp.main import CANARY_API_KEY, app
 
 
 def _client(tmp_path, monkeypatch):
+    # The real app files carry whatever patches are live on the Nano; test the bare apps.
+    from chameleon.demoapp.main import APPS
+    for module in APPS.values():
+        monkeypatch.setattr(module.patches, "guards", [])
     monkeypatch.setattr(config, "DB_PATH", tmp_path / "demo.db")
     return TestClient(app)
 

@@ -192,10 +192,12 @@ The dashboard has three panels: **PAYLOAD_INJECTOR** (a terminal plus attack pre
 - [x] Gateway on :8000: proxies safe traffic, 307-redirects attacks to the decoy app, 403s stolen honeytokens and patched attacks
 - [x] Decoy app on the Nano (:8300), every answer written by Qwen
 - [x] Redis patch store; approved patches rendered as Python into the four demo apps
-- [ ] Jev: the client is built and tested against TypeSafe's documented API, but it hasn't been run against the live API yet (set `JEV_API_KEY`); without a key the Nano decides alone
+- [x] Jev live through Vercel AI Gateway (`typesafe-ai/jev`, key `AI_GATEWAY_API_KEY` in `.env.local`), ~260-650 ms per request. In a live run of 13 real requests it caught 5 attacks the Nano model missed (command injection x2, path traversal x2, SSRF)
 - [ ] The fine-tuned 7B isn't yet the default writer in production. It's evaluated and published, but serving it needs the backend-socket route (`llm.timed_call(uds=...)`), because ZRT's proxy doesn't route LoRA adapters
 
 **Known weaknesses, measured:**
+- Jev false positive seen live: "Please ignore my last message, I meant order #4417" scored 0.69 and went to the decoy. It doesn't catch `{{7*7}}` (0.29).
+- A learned command-injection rule once blocked any `;` or `|`, so real searches like "Tom & Jerry DVD; season 1" got a 403. The random sample of normal traffic had no such characters. The normal-traffic test now always includes realistic inputs that use the characters attacks use (`autopatch.HARD_NEGATIVES`); the rule was rolled back and re-learned.
 - Regex rules generalize well to structured attacks and poorly to natural-language ones. In the fine-tune data, teacher rules reached a median 80% recall on unseen SQLi but only 6% on unseen prompt injection. That's why prompt injection relies on the trained classifier and the honeypot, not on patches.
 - The approved path-traversal rule has one recorded known bypass: Windows-style backslash paths (`..\..\`). The pipeline logged it as a known gap rather than hiding it.
 - The fine-tuned 7B gets stuck in repetition loops on about a third of outputs.

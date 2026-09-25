@@ -28,6 +28,7 @@ def _load_dotenv(path: Path) -> None:
 
 
 _load_dotenv(ROOT / ".env")
+_load_dotenv(ROOT / ".env.local")  # AI_GATEWAY_API_KEY lives here (shared with the AI SDK examples)
 
 ALLOWED_LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
@@ -51,12 +52,17 @@ CLOUD_PRICE_IN_PER_1K = float(os.getenv("CLOUD_PRICE_IN_PER_1K", "0"))
 CLOUD_PRICE_OUT_PER_1K = float(os.getenv("CLOUD_PRICE_OUT_PER_1K", "0"))
 CLOUD_DAILY_REQUEST_BUDGET = int(os.getenv("CLOUD_DAILY_REQUEST_BUDGET", "0"))
 
+# Jev is reached through Vercel AI Gateway (model typesafe-ai/jev) when
+# AI_GATEWAY_API_KEY is set, else directly through TypeSafe's API with JEV_API_KEY.
+AI_GATEWAY_API_KEY = os.getenv("AI_GATEWAY_API_KEY", "")
+AI_GATEWAY_URL = os.getenv("AI_GATEWAY_URL", "https://ai-gateway.vercel.sh/v4/ai")
+JEV_GATEWAY_MODEL = os.getenv("JEV_GATEWAY_MODEL", "typesafe-ai/jev")
 JEV_API_KEY = os.getenv("JEV_API_KEY", "")
 JEV_API_URL = os.getenv("JEV_API_URL", "") or "https://api.typesafe.ai/v1/systemone"
 JEV_MODEL = os.getenv("JEV_MODEL", "jev-latest")
 # Jev sits in front of every request, so a slow answer counts as no answer:
-# past this budget the Nano check model decides alone.
-JEV_TIMEOUT_S = float(os.getenv("JEV_TIMEOUT_S", "2.0"))
+# past this budget (retries included) the Nano check model decides alone.
+JEV_TIMEOUT_S = float(os.getenv("JEV_TIMEOUT_S", "2.5"))
 JEV_THRESHOLD = float(os.getenv("JEV_THRESHOLD", "0.5"))
 
 # Patch store (Redis). Empty = patches live only in SQLite.

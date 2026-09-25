@@ -38,9 +38,28 @@ def _benign_pool(sources: tuple[str, ...]) -> list[str]:
     return df[(df["label"] == 0) & (df["source"].isin(sources))]["text"].tolist()
 
 
+# Real-looking customer input that uses the same characters attacks do. A random
+# sample of normal traffic rarely contains any, so a rule like "block every ';'"
+# used to pass the normal-traffic test and then 403 real searches. Every rule
+# must now let all of these through. The first entry in each list is the false
+# positive found in live testing on Sep 25.
+HARD_NEGATIVES = {
+    "q": ["Tom & Jerry DVD; season 1", "O'Brien running shoes", "50% off -- summer sale", "<3 valentine gifts",
+          "rock | paper | scissors t-shirt", "shoes size 9; wide fit", "Q&A book: C++ & Java",
+          "select your size chart", "union jack flag", "AT&T phone case", "1/2 price hats", "\"best\" wireless mouse"],
+    "name": ["reports/2024-Q3.pdf", "invoice_2024.pdf", "my file (1).txt", "photos/summer-2024.jpg"],
+    "username": ["o'connor", "mary-ann", "d'angelo_22", "j.smith"],
+    "password": ["P@ss;word|2024", "correct horse battery staple", "O'Reilly#1", "--summer--"],
+    "message": ["Please ignore my last message, I meant order #4417",
+                "Can you ignore the old address and ship to the new one?",
+                "What's your return policy; do you cover shipping?", "I forgot my password, how do I reset it?",
+                "Is the <3 emoji allowed in gift notes?", "Order #88 & #89 arrived -- thanks!"],
+}
+
+
 def benign_examples(field: str, n: int = 30) -> list[str]:
     pool = _benign_pool(_BENIGN_SOURCES.get(field, ("httpparams",)))
-    return random.Random(field).sample(pool, min(n, len(pool)))
+    return HARD_NEGATIVES.get(field, []) + random.Random(field).sample(pool, min(n, len(pool)))
 
 
 def submit(conn, field: str, payload: str, attack_type: str) -> str | None:

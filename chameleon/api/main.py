@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from .. import autopatch, cloud_mirror, config, db, router
 from ..decoy.app import REPLY_FIELD
 from ..honeypot import deception
+from ..jev import client as jev_client
 from ..patch import integrate, redis_store
 from ..patch import store as patch_store
 from ..redteam import scenario as redteam_scenario
@@ -143,7 +144,9 @@ def infra():
         except httpx.HTTPError:
             return False
     return {
-        "jev": {"configured": bool(config.JEV_API_KEY), "model": config.JEV_MODEL},
+        "jev": {"configured": jev_client.configured(),
+                "via": "vercel-ai-gateway" if config.AI_GATEWAY_API_KEY else "typesafe",
+                "model": config.JEV_GATEWAY_MODEL if config.AI_GATEWAY_API_KEY else config.JEV_MODEL},
         "redis": redis_store.health() or {"ok": False},
         "decoy": {"url": config.DECOY_APP_URL, "up": up(f"{config.DECOY_APP_URL}/openapi.json")},
         "gateway": {"url": config.GATEWAY_URL, "up": up(f"{config.GATEWAY_URL}/openapi.json")},

@@ -103,3 +103,41 @@ def test_jev_parse_handles_noul_and_choice_shapes():
         "attack_type": {"type": "choice", "probabilities": {"sqli": 0.8, "none": 0.2}}}})
     assert parsed["malicious"] and parsed["score"] == 0.93 and parsed["attack_type"] == "sqli"
     assert jev_client.parse({"answers": {"is_attack": {"probabilities": {"yes": 0.1, "no": 0.9}}}})["malicious"] is False
+
+
+def test_jev_parse_handles_the_ai_gateway_boolean_shape():
+    parsed = jev_client.parse({"answers": {
+        "is_attack": {"type": "boolean", "probability": 0.94},
+        "attack_type": {"type": "choice", "choice": "command-injection", "probabilities": {"command-injection": 0.9}}}})
+    assert parsed["malicious"] and parsed["score"] == 0.94 and parsed["attack_type"] == "command-injection"
+
+
+def test_jev_goes_through_ai_gateway_and_retries_a_503(monkeypatch):
+    import httpx
+    from chameleon import config
+    monkeypatch.setattr(config, "AI_GATEWAY_API_KEY", "k")
+    calls = []
+
+    def _post(url, json=None, headers=None, timeout=None):
+        calls.append((url, headers["ai-model-id"], json["questions"]["is_attack"]["type"]))
+        if len(calls) == 1:
+            return httpx.Response(503, text="busy")
+        return httpx.Response(200, json={"answers": {"is_attack": {"type": "boolean", "probability": 0.9},
+                                                     "attack_type": {"type": "choice", "choice": "sqli"}}})
+    monkeypatch.setattr(jev_client.httpx, "post", _post)
+
+    result = jev_client.check({"q": "1 union select 1"})
+
+    assert len(calls) == 2 and calls[0] == (f"{config.AI_GATEWAY_URL}/evaluation-model", "typesafe-ai/jev", "boolean")
+    assert result["malicious"] and result["backend"] == "vercel-ai-gateway"
+
+
+def test_jev_gives_up_within_its_time_budget(monkeypatch):
+    import httpx
+    from chameleon import config
+    monkeypatch.setattr(config, "AI_GATEWAY_API_KEY", "k")
+    monkeypatch.setattr(config, "JEV_TIMEOUT_S", 0.3)
+    monkeypatch.setattr(jev_client.httpx, "post", lambda *a, **k: httpx.Response(503, text="busy"))
+    import pytest
+    with pytest.raises(jev_client.JevUnavailable, match="HTTP 503"):
+        jev_client.check({"q": "x"})
