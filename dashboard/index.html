@@ -132,6 +132,70 @@
   .stat .v small { font-size: 13px; color: var(--g-dim); font-weight: 400; }
   .stat .v .before { color: var(--red); } .stat .v .after { color: var(--g-bright); }
   .foot { margin-top: 14px; color: var(--g-dim); font-size: 12px; letter-spacing: .06em; }
+
+  /* ---------- view tabs ---------- */
+  .views { display: flex; gap: 8px; margin: -12px 0 28px; }
+  .views button { background: none; border: 1px solid var(--g-border); color: var(--g-dim); padding: 9px 20px;
+                  letter-spacing: .14em; font-size: 14px; font-weight: 700; }
+  .views button.on { background: var(--g-mid); color: #000; border-color: var(--g-mid); }
+
+  /* ---------- comparisons ---------- */
+  /* Series colors validated (dataviz validator, dark, surface #000, all pairs):
+     Nano aqua #199e70, AWS on-demand orange #d95926, AWS enterprise blue #3987e5. */
+  :root { --c-nano: #199e70; --c-aws: #d95926; --c-ent: #3987e5; --ink: #e5e7eb; --ink-2: #9ca3af; --ink-3: #6b7280; --grid: #1f2937; }
+  .cmp-bar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
+  .switch { display: inline-flex; align-items: center; gap: 12px; background: none; border: 1px solid var(--g-border);
+            color: var(--g-dim); padding: 9px 16px; font-size: 14px; font-weight: 700; letter-spacing: .1em; }
+  .switch .knob { width: 34px; height: 18px; border-radius: 9px; background: #1f2937; position: relative; flex: none; }
+  .switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink-3); transition: left .15s; }
+  .switch[aria-pressed="true"] { color: var(--ink); border-color: var(--c-aws); }
+  .switch[aria-pressed="true"] .knob { background: var(--c-aws); }
+  .switch[aria-pressed="true"] .knob::after { left: 18px; background: #fff; }
+  .cmp-model { color: var(--ink-2); font-size: 13px; }
+  .cmp-model b { color: var(--ink); font-weight: 600; }
+  .cmp-warn { border: 1px solid #7c2d12; background: #1c0d05; color: #fdba74; padding: 10px 14px; font-size: 13px; margin-bottom: 18px; }
+  .halves { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .halves { grid-template-columns: 1fr; } }
+  .half { border: 2px solid var(--g-border); border-radius: 14px; overflow: hidden; }
+  .half.nano { border-color: var(--c-nano); } .half.aws { border-color: var(--c-aws); }
+  .half-head { padding: 16px 22px; font-weight: 800; letter-spacing: .14em; font-size: 16px; color: var(--ink);
+               border-bottom: 1px solid var(--grid); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .half-head small { font-weight: 400; letter-spacing: .04em; color: var(--ink-3); font-size: 12px; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .swatch.nano { background: var(--c-nano); } .swatch.aws { background: var(--c-aws); } .swatch.ent { background: var(--c-ent); }
+  .metrics { display: flex; flex-direction: column; }
+  .metric { padding: 14px 22px; border-bottom: 1px solid var(--grid); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 70px; }
+  .metric:last-child { border-bottom: none; }
+  .metric .k { color: var(--ink-3); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; }
+  .metric .sub2 { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+  .metric .v { color: var(--ink); font-size: 22px; font-weight: 700; text-align: right; white-space: nowrap; }
+  .metric .v small { font-size: 12.5px; color: var(--ink-2); font-weight: 400; }
+  .win { display: inline-block; margin-left: 8px; border: 1px solid var(--ink-3); color: var(--ink); font-size: 10.5px;
+         padding: 2px 6px; letter-spacing: .08em; vertical-align: middle; font-weight: 700; }
+  .cmp-panel { margin-top: 24px; border: 2px solid var(--g-border); border-radius: 14px; padding: 20px 22px; }
+  .cmp-title { color: var(--ink); font-weight: 700; letter-spacing: .06em; font-size: 15px; margin-bottom: 12px; }
+  .cmp-title small { color: var(--ink-3); font-weight: 400; letter-spacing: 0; font-size: 12px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; color: var(--ink-2); font-size: 12.5px; margin-bottom: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 18px; height: 2px; display: inline-block; }
+  .chart-wrap { position: relative; }
+  .chart-empty { color: var(--ink-3); font-size: 13px; padding: 40px 0; text-align: center; border: 1px dashed var(--grid); }
+  .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .tip { position: absolute; pointer-events: none; background: #0b0f14; border: 1px solid #374151; padding: 9px 12px;
+         font-size: 12px; color: var(--ink); min-width: 210px; z-index: 5; box-shadow: 0 4px 16px rgba(0,0,0,.6); }
+  .tip .t { color: var(--ink-2); margin-bottom: 6px; }
+  .tip .r { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+  .tip .r span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+  .cmp-notes { color: var(--ink-3); font-size: 12px; line-height: 1.7; margin-top: 10px; }
+  .cmp-notes b { color: var(--ink-2); font-weight: 600; }
+  .cmp-table-toggle { margin-top: 10px; color: var(--ink-2); font-size: 12.5px; }
+  .cmp-table-toggle summary { cursor: pointer; }
+  .tbl-scroll { overflow-x: auto; }
+  .cmp-panel table { width: 100%; border-collapse: collapse; font-size: 12.5px; color: var(--ink); margin-top: 8px; }
+  .cmp-panel th, .cmp-panel td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  .cmp-panel th { color: var(--ink-3); font-weight: 400; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+  .cmp-panel th:first-child, .cmp-panel td:first-child, .cmp-panel td.l, .cmp-panel th.l { text-align: left; }
+  .cmp-panel td.snip { max-width: 320px; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2); }
 </style>
 </head>
 <body>
@@ -144,10 +208,16 @@
     <div class="badges">
       <span class="badge">AUTO_DEFENSE: ACTIVE</span>
       <span class="badge">INFERENCE: ON-NANO</span>
-      <span class="badge" id="cloud-badge">CLOUD_COST: $0.0000</span>
+      <span class="badge" id="cloud-badge">AWS_SPEND: $0.0000</span>
     </div>
   </header>
 
+  <nav class="views">
+    <button data-view="home" class="on">HOME</button>
+    <button data-view="compare">COMPARISONS</button>
+  </nav>
+
+  <div id="view-home">
   <div class="grid">
     <!-- ================= PAYLOAD_INJECTOR ================= -->
     <section class="panel">
@@ -229,6 +299,39 @@
     <div class="stat"><div class="k">Nano LLM calls</div><div class="v" id="s-calls">0 <small>$0 cloud</small></div></div>
   </div>
   <div class="foot">All inference on the HP ZGX Nano &middot; attacker text is data, never instructions &middot; patches are tested before they're trusted</div>
+  </div>
+
+  <div id="view-compare" hidden>
+    <div class="cmp-bar">
+      <button class="switch" id="cmp-toggle" aria-pressed="false"><span class="knob"></span><span id="cmp-toggle-label">COMPARE_WITH_AWS: OFF</span></button>
+      <div class="cmp-model">Same model on both sides: <b>Qwen3-Next-80B-A3B</b> &middot; Nano: NVFP4 on the GB10 &middot; AWS: Bedrock on-demand, <span id="cmp-region">us-west-2</span></div>
+    </div>
+    <div class="cmp-warn" id="cmp-warn" hidden></div>
+
+    <div class="halves">
+      <section class="half nano">
+        <div class="half-head"><span class="swatch nano"></span>NANO // EDGE <small>HP ZGX Nano, on-site</small></div>
+        <div class="metrics" id="m-nano"></div>
+      </section>
+      <section class="half aws">
+        <div class="half-head"><span class="swatch aws"></span>AWS // CLOUD <small>Amazon Bedrock</small></div>
+        <div class="metrics" id="m-aws"></div>
+      </section>
+    </div>
+
+    <section class="cmp-panel">
+      <div class="cmp-title">Cost at scale &mdash; monthly cost vs attacks per day</div>
+      <div class="legend" id="chart-legend"></div>
+      <div class="chart-wrap" id="chart-wrap"><div class="chart-empty">Turn comparison on and send a few requests from Home to project costs.</div></div>
+      <div class="cmp-notes" id="chart-notes"></div>
+      <details class="cmp-table-toggle"><summary>Show as a table</summary><div class="tbl-scroll"><table id="proj-table"></table></div></details>
+    </section>
+
+    <section class="cmp-panel">
+      <div class="cmp-title">Request by request <small>(the same prompt, answered on both sides; the Nano's answer is the one the system uses)</small></div>
+      <div class="tbl-scroll"><table id="pairs-table"></table></div>
+    </section>
+  </div>
 </div>
 
 <script>
@@ -498,7 +601,7 @@ function applySummary(s) {
   const nano = (s.calls_by_provider && s.calls_by_provider.nano) || { n: 0 };
   const cloud = (s.calls_by_provider && s.calls_by_provider.cloud) || { n: 0, cost_usd: 0 };
   $('s-calls').replaceChildren(String(nano.n), ' ', el('small', null, `$${cloud.cost_usd.toFixed(2)} cloud`));
-  $('cloud-badge').textContent = `CLOUD_COST: $${cloud.cost_usd.toFixed(4)}`;
+  $('cloud-badge').textContent = `AWS_SPEND: $${(cloud.cost_usd + (s.aws_comparison_cost_usd || 0)).toFixed(4)}`;
 }
 async function refresh() {
   try { applySummary(await fetch('/api/summary').then((r) => r.json())); await refreshRules(); } catch {}
@@ -517,7 +620,261 @@ function bootLines() {
   log('Routing: automatic. Nano check model + auto-patches decide HONEYPOT or PRODUCTION', 'dim');
 }
 
+// ---------- views ----------
+function showView(name) {
+  $('view-home').hidden = name !== 'home';
+  $('view-compare').hidden = name !== 'compare';
+  document.querySelectorAll('.views button').forEach((b) => b.classList.toggle('on', b.dataset.view === name));
+  try { history.replaceState(null, '', name === 'compare' ? '#compare' : '#'); } catch {}
+  if (name === 'compare') refreshCompare();
+}
+
+// ---------- comparisons: Nano vs AWS, same model ----------
+const fmtMs = (v) => (v == null ? '–' : `${Math.round(v)} ms`);
+function fmtUsd(v) {
+  if (v == null) return '–';
+  if (v === 0) return '$0';
+  if (v >= 1000) return `$${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}k`;
+  if (v >= 1) return `$${v.toFixed(2)}`;
+  if (v >= 0.01) return `$${v.toFixed(3)}`;
+  return `$${v.toFixed(Math.min(10, 1 - Math.floor(Math.log10(v))))}`;
+}
+function fmtBytes(v) {
+  if (!v) return '0 B';
+  return v >= 1e6 ? `${(v / 1e6).toFixed(1)} MB` : v >= 1e3 ? `${(v / 1e3).toFixed(1)} KB` : `${v} B`;
+}
+const fmtCount = (v) => (v >= 1e6 ? `${+(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `${+(v / 1e3).toFixed(1)}k` : String(Math.round(v)));
+
+function metric(label, value, sub, badge) {
+  const row = el('div', 'metric');
+  const left = el('div');
+  left.append(el('div', 'k', label));
+  if (sub) left.append(el('div', 'sub2', sub));
+  const v = el('div', 'v');
+  if (Array.isArray(value)) v.append(...value); else v.textContent = value;
+  if (badge) v.append(el('span', 'win', badge));
+  row.append(left, v);
+  return row;
+}
+// Whichever side is lower gets the badge, with the ratio when it's meaningful.
+function lowerWins(a, b, word) {
+  if (a == null || b == null || a === b) return [null, null];
+  const [lo, hi] = a < b ? [a, b] : [b, a];
+  const ratio = lo > 0 ? hi / lo : null;
+  const label = ratio && ratio >= 1.5 ? `${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}× ${word}` : word;
+  return a < b ? [label, null] : [null, label];
+}
+
+function renderHalves(d) {
+  const n = d.nano, a = d.aws;
+  const [latN, latA] = lowerWins(n.latency_p50_ms, a.latency_p50_ms, 'FASTER');
+  const [costN, costA] = lowerWins(n.cost_per_request_usd, a.cost_per_request_usd, 'CHEAPER');
+  const tokens = (s) => (s.in_tokens_avg == null ? '–' : `${Math.round(s.in_tokens_avg)} → ${Math.round(s.out_tokens_avg)}`);
+  $('m-nano').replaceChildren(
+    metric('Requests measured', String(n.n), 'paired with the same request on AWS'),
+    metric('Latency p50', fmtMs(n.latency_p50_ms), `p95 ${fmtMs(n.latency_p95_ms)} · on-box, no network hop`, latN),
+    metric('Tokens per request', tokens(n), 'in → out'),
+    metric('Cost per request', fmtUsd(n.cost_per_request_usd), 'electricity at measured GPU power', costN),
+    metric('Cost so far', fmtUsd(n.cost_total_usd), 'marginal; the box itself is a fixed cost (see chart)'),
+    metric('Attack data sent off-box', fmtBytes(n.bytes_sent_off_box), 'payloads, logs and patches stay on-site', 'PRIVATE'),
+    metric('Works with internet cut', 'YES', 'honeypot, patching and verification keep running'),
+    metric('Energy per request', n.energy_j_avg == null ? '–' : `${n.energy_j_avg.toFixed(1)} J`,
+           n.power_w_avg == null ? 'measuring…' : `at ${n.power_w_avg.toFixed(1)} W average GPU draw`),
+  );
+  $('m-aws').replaceChildren(
+    metric('Requests measured', String(a.n), d.pending ? `${d.pending} still in flight` : (a.failed ? `${a.failed} failed: ${short(a.last_error || '', 60)}` : 'all mirrored calls succeeded')),
+    metric('Latency p50', fmtMs(a.latency_p50_ms), `p95 ${fmtMs(a.latency_p95_ms)} · includes the internet round trip`, latA),
+    metric('Tokens per request', tokens(a), 'in → out · same tokenizer, same prompt'),
+    metric('Cost per request', fmtUsd(a.cost_per_request_usd),
+           a.enterprise_cost_per_request_usd == null ? 'on-demand price' :
+           `on-demand · ${fmtUsd(a.enterprise_cost_per_request_usd)} with ${Math.round(d.state.enterprise_discount * 100)}% enterprise discount`, costA),
+    metric('Cost so far', fmtUsd(a.cost_total_usd), 'billed per token'),
+    metric('Attack data sent off-box', fmtBytes(a.bytes_sent_off_box), 'every prompt, including attacker payloads'),
+    metric('Works with internet cut', 'NO', 'needs the network to reach Bedrock'),
+    metric('Energy per request', 'not visible', 'billed per token; the power is AWS\'s'),
+  );
+}
+
+// ----- the cost-at-scale chart (log-log, one axis, 3 series, direct labels + legend + hover) -----
+const SERIES = [
+  { key: 'nano_usd_month', label: 'Nano (hardware amortized + electricity)', short: 'Nano', color: 'var(--c-nano)' },
+  { key: 'aws_on_demand_usd_month', label: 'AWS on-demand', short: 'AWS on-demand', color: 'var(--c-aws)' },
+  { key: 'aws_enterprise_usd_month', label: 'AWS enterprise (assumed discount)', short: 'AWS enterprise', color: 'var(--c-ent)' },
+];
+const svgEl = (tag, attrs = {}) => {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+};
+
+function drawChart(proj) {
+  const wrap = $('chart-wrap');
+  if (!proj) {
+    wrap.replaceChildren(el('div', 'chart-empty', 'Turn comparison on and send a few requests from Home to project costs.'));
+    $('chart-legend').replaceChildren(); $('chart-notes').replaceChildren(); $('proj-table').replaceChildren();
+    return;
+  }
+  $('chart-legend').replaceChildren(...SERIES.map((s) => {
+    const span = el('span'); const i = el('i'); i.style.background = s.color; span.append(i, s.label); return span;
+  }));
+
+  const pts = proj.points;
+  const W = Math.max(wrap.clientWidth, 480), H = 340, m = { l: 78, r: 128, t: 14, b: 42 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const xs = pts.map((p) => p.attacks_per_day);
+  const vals = pts.flatMap((p) => SERIES.map((s) => p[s.key])).filter((v) => v != null && v > 0);
+  const lo = Math.pow(10, Math.floor(Math.log10(Math.min(...vals))));
+  const hi = Math.pow(10, Math.ceil(Math.log10(Math.max(...vals))));
+  const x = (v) => m.l + (Math.log10(v) - Math.log10(xs[0])) / (Math.log10(xs[xs.length - 1]) - Math.log10(xs[0])) * pw;
+  const y = (v) => m.t + ph - (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * ph;
+
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img',
+    'aria-label': 'Monthly cost versus attacks per day for the Nano, AWS on-demand and AWS enterprise pricing' });
+  // recessive grid + axes
+  for (let v = lo; v <= hi * 1.001; v *= 10) {
+    svg.append(svgEl('line', { x1: m.l, x2: m.l + pw, y1: y(v), y2: y(v), stroke: 'var(--grid)', 'stroke-width': 1 }));
+    const t = svgEl('text', { x: m.l - 10, y: y(v) + 4, 'text-anchor': 'end', fill: 'var(--ink-3)', 'font-size': 11 });
+    t.textContent = v >= 1000 ? `$${v / 1000}k` : `$${+v.toPrecision(1)}`; svg.append(t);
+  }
+  for (const v of xs) {
+    const t = svgEl('text', { x: x(v), y: m.t + ph + 18, 'text-anchor': 'middle', fill: 'var(--ink-3)', 'font-size': 11 });
+    t.textContent = fmtCount(v); svg.append(t);
+  }
+  const xl = svgEl('text', { x: m.l + pw / 2, y: H - 4, 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 11.5 });
+  xl.textContent = 'attacks per day (log scale)'; svg.append(xl);
+  const yl = svgEl('text', { x: 12, y: m.t + ph / 2, 'text-anchor': 'middle', fill: 'var(--ink-2)', 'font-size': 11.5,
+                             transform: `rotate(-90 12 ${m.t + ph / 2})` });
+  yl.textContent = 'monthly cost (log scale)'; svg.append(yl);
+
+  // reference markers: break-even and the Nano's measured capacity
+  const marker = (v, text) => {
+    if (!v || v < xs[0] || v > xs[xs.length - 1]) return;
+    svg.append(svgEl('line', { x1: x(v), x2: x(v), y1: m.t, y2: m.t + ph, stroke: 'var(--ink-3)', 'stroke-dasharray': '4 4', 'stroke-width': 1 }));
+    const t = svgEl('text', { x: x(v) + 5, y: m.t + 12, fill: 'var(--ink-2)', 'font-size': 11 });
+    t.textContent = text; svg.append(t);
+  };
+  marker(proj.breakeven_on_demand_per_day, `break-even vs on-demand: ${fmtCount(proj.breakeven_on_demand_per_day)}/day`);
+  marker(proj.nano_capacity_per_day, `one Nano's capacity: ${fmtCount(proj.nano_capacity_per_day)}/day`);
+
+  // lines (2px), markers (8px) with a surface ring, direct labels at the last point
+  const endLabels = [];
+  for (const s of SERIES) {
+    const series = pts.filter((p) => p[s.key] != null && p[s.key] > 0);
+    if (!series.length) continue;
+    svg.append(svgEl('path', { d: series.map((p, i) => `${i ? 'L' : 'M'}${x(p.attacks_per_day)},${y(p[s.key])}`).join(' '),
+      fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    for (const p of series) svg.append(svgEl('circle', { cx: x(p.attacks_per_day), cy: y(p[s.key]), r: 4, fill: s.color, stroke: '#000', 'stroke-width': 2 }));
+    const last = series[series.length - 1];
+    endLabels.push({ text: s.short, x: x(last.attacks_per_day) + 9, y: y(last[s.key]) + 4 });
+  }
+  endLabels.sort((p, q) => p.y - q.y);
+  for (let i = 1; i < endLabels.length; i++) {
+    const prev = endLabels[i - 1], cur = endLabels[i];
+    if (Math.abs(cur.x - prev.x) < 110 && cur.y - prev.y < 14) cur.y = prev.y + 14;
+  }
+  for (const lbl of endLabels) {
+    const t = svgEl('text', { x: lbl.x, y: lbl.y, fill: 'var(--ink-2)', 'font-size': 11.5 });
+    t.textContent = lbl.text; svg.append(t);
+  }
+
+  // hover: crosshair + tooltip for the nearest volume
+  const cross = svgEl('line', { y1: m.t, y2: m.t + ph, stroke: 'var(--ink-2)', 'stroke-width': 1, visibility: 'hidden' });
+  svg.append(cross);
+  const hit = svgEl('rect', { x: m.l, y: m.t, width: pw, height: ph, fill: 'transparent' });
+  svg.append(hit);
+  const tip = el('div', 'tip'); tip.hidden = true;
+  hit.addEventListener('mousemove', (ev) => {
+    const rect = svg.getBoundingClientRect(), sx = (ev.clientX - rect.left) * (W / rect.width);
+    const p = pts.reduce((best, q) => (Math.abs(x(q.attacks_per_day) - sx) < Math.abs(x(best.attacks_per_day) - sx) ? q : best));
+    cross.setAttribute('x1', x(p.attacks_per_day)); cross.setAttribute('x2', x(p.attacks_per_day)); cross.setAttribute('visibility', 'visible');
+    tip.replaceChildren(el('div', 't', `${p.attacks_per_day.toLocaleString()} attacks/day`));
+    for (const s of SERIES) {
+      const r = el('div', 'r'); const name = el('span'); const sw = el('i', 'swatch'); sw.style.background = s.color;
+      name.append(sw, s.short);
+      r.append(name, el('b', null, p[s.key] == null ? 'over capacity' : `${fmtUsd(p[s.key])}/mo`));
+      tip.append(r);
+    }
+    tip.hidden = false;
+    const px = x(p.attacks_per_day) * (rect.width / W);
+    tip.style.left = `${px > rect.width * 0.6 ? px - 230 : px + 14}px`; tip.style.top = '20px';
+  });
+  hit.addEventListener('mouseleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+  wrap.replaceChildren(svg, tip);
+
+  // notes + table view
+  const a = proj.assumptions, notes = $('chart-notes');
+  notes.replaceChildren();
+  const note = (k, v) => { const d2 = el('div'); d2.append(el('b', null, `${k}: `), v); notes.append(d2); };
+  if (proj.breakeven_on_demand_per_day) note('Break-even', `the Nano is cheaper than AWS on-demand above ${fmtCount(proj.breakeven_on_demand_per_day)} attacks/day`
+    + (proj.breakeven_enterprise_per_day ? `, and than the discounted enterprise rate above ${fmtCount(proj.breakeven_enterprise_per_day)}/day` : '') + '. Below that, AWS costs less.');
+  note('Per-request inputs', 'measured on this run: tokens and latency on both sides, GPU power on the Nano');
+  note('AWS on-demand', a.aws_on_demand); note('AWS enterprise', a.aws_enterprise);
+  note('Nano hardware', a.nano_hardware); note('Electricity', a.electricity); note('Nano capacity', a.nano_capacity);
+
+  const table = $('proj-table');
+  const head = el('tr'); ['Attacks/day', ...SERIES.map((s) => `${s.short} $/month`)].forEach((h) => head.append(el('th', null, h)));
+  table.replaceChildren(head, ...pts.map((p) => {
+    const tr = el('tr'); tr.append(el('td', null, p.attacks_per_day.toLocaleString()));
+    SERIES.forEach((s) => tr.append(el('td', null, p[s.key] == null ? 'over capacity' : fmtUsd(p[s.key]))));
+    return tr;
+  }));
+}
+
+function renderPairs(rows) {
+  const table = $('pairs-table');
+  const cols = ['Time', 'Role', 'Input', 'Tokens in', 'Out: Nano', 'Out: AWS', 'Nano ms', 'AWS ms', 'Nano $', 'AWS $'];
+  const head = el('tr'); cols.forEach((c, i) => head.append(el('th', i < 3 ? 'l' : null, c)));
+  if (!rows.length) {
+    const tr = el('tr'); const td = el('td', 'l', 'No paired requests yet.'); td.colSpan = cols.length; tr.append(td);
+    table.replaceChildren(head, tr); return;
+  }
+  table.replaceChildren(head, ...rows.map((r) => {
+    const tr = el('tr');
+    const aws = r.aws_ok === 1 ? null : r.aws_ok === 0 ? 'failed' : 'in flight';
+    [new Date(r.ts * 1000).toLocaleTimeString(), r.role].forEach((t) => tr.append(el('td', 'l', t)));
+    tr.append(el('td', 'l snip', r.snippet || ''));
+    tr.append(el('td', null, String(r.nano_in_tokens)), el('td', null, String(r.nano_out_tokens)),
+              el('td', null, aws || String(r.aws_out_tokens)), el('td', null, fmtMs(r.nano_latency_ms)),
+              el('td', null, aws || fmtMs(r.aws_latency_ms)), el('td', null, fmtUsd(r.nano_cost_usd)),
+              el('td', null, aws || fmtUsd(r.aws_cost_usd)));
+    return tr;
+  }));
+}
+
+let lastCompare = null;
+async function refreshCompare() {
+  if ($('view-compare').hidden) return;
+  let d;
+  try { d = await fetch('/api/compare').then((r) => r.json()); } catch { return; }
+  lastCompare = d;
+  const t = $('cmp-toggle');
+  t.disabled = !d.state.configured;
+  t.setAttribute('aria-pressed', String(d.state.enabled));
+  $('cmp-toggle-label').textContent = !d.state.configured ? 'AWS NOT CONFIGURED'
+    : `COMPARE_WITH_AWS: ${d.state.enabled ? 'ON' : 'OFF'}`;
+  $('cmp-region').textContent = d.state.region;
+  const warn = $('cmp-warn');
+  warn.hidden = !d.state.enabled;
+  warn.textContent = `Comparison mode is ON: every Qwen request is also sent to AWS Bedrock, so ${fmtBytes(d.aws.bytes_sent_off_box)} of attack data has left the building so far. Turn it off for pure edge mode.`;
+  renderHalves(d);
+  drawChart(d.projection);
+  renderPairs(d.recent);
+}
+
+async function toggleCompare() {
+  const on = $('cmp-toggle').getAttribute('aria-pressed') !== 'true';
+  const resp = await fetch('/api/compare/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                   body: JSON.stringify({ enabled: on }) });
+  if (!resp.ok) log(`comparison mode: ${(await resp.json()).detail}`, 'warn');
+  refreshCompare();
+}
+
 // ---------- wire up ----------
+document.querySelectorAll('.views button').forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)));
+$('cmp-toggle').addEventListener('click', toggleCompare);
+window.addEventListener('resize', () => { if (lastCompare && !$('view-compare').hidden) drawChart(lastCompare.projection); });
+setInterval(refreshCompare, 3000);
+if (location.hash === '#compare') showView('compare');
 for (const p of PRESETS) {
   const b = el('button', `chip ${p.cls || ''}`, p.label);
   b.addEventListener('click', () => {

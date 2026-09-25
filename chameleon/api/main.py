@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .. import config, db, router
+from .. import cloud_mirror, config, db, router
 from ..redteam import scenario as redteam_scenario
 
 app = FastAPI(title="Chameleon Edge dashboard")
@@ -57,7 +57,10 @@ def summary():
                 "FROM llm_calls GROUP BY provider"
             )
         }
+        aws_comparison_cost = conn.execute(
+            "SELECT COALESCE(SUM(aws_cost_usd), 0) AS c FROM comparisons").fetchone()["c"]
         return {
+            "aws_comparison_cost_usd": aws_comparison_cost,
             "total_requests": total,
             "malicious_requests": malicious,
             "sessions_open": sessions_open,
@@ -236,6 +239,36 @@ def try_request(req: TryRequest):
     return out
 
 
+class CompareMode(BaseModel):
+    enabled: bool
+
+
+@app.get("/api/compare")
+def compare():
+    """Nano vs AWS Bedrock, same model, measured on the requests run from Home."""
+    conn = _conn()
+    try:
+        data = cloud_mirror.summary(conn)
+    finally:
+        conn.close()
+    data["state"] = {
+        "enabled": cloud_mirror.enabled(),
+        "configured": cloud_mirror.configured(),
+        "model": config.BEDROCK_MODEL_ID,
+        "region": config.AWS_REGION,
+        "enterprise_discount": config.ENTERPRISE_DISCOUNT,
+    }
+    return data
+
+
+@app.post("/api/compare/mode")
+def compare_mode(req: CompareMode):
+    if req.enabled and not cloud_mirror.configured():
+        raise HTTPException(status_code=400, detail="AWS credentials are not configured in .env")
+    cloud_mirror.set_enabled(req.enabled)
+    return {"enabled": cloud_mirror.enabled()}
+
+
 @app.post("/api/demo/reset")
 def reset_demo():
     """Wipe every table for a clean demo run. Trained models on disk are untouched."""
@@ -246,7 +279,8 @@ def reset_demo():
     try:
         # Children before parents: attack_events -> sessions and patch_events -> patches
         # are foreign keys (enforced), so the other order fails once real data exists.
-        for table in ("attack_events", "patch_events", "sessions", "patches", "requests", "llm_calls", "runs"):
+        for table in ("attack_events", "patch_events", "sessions", "patches", "requests", "llm_calls",
+                      "comparisons", "runs"):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
         return {"ok": True}

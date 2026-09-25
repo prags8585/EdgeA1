@@ -71,6 +71,27 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     ts REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS comparisons (
+    id TEXT PRIMARY KEY,
+    ts REAL NOT NULL,
+    role TEXT NOT NULL,            -- 'honeypot' | 'writer'
+    snippet TEXT,                  -- start of the untrusted input, for the table
+    nano_latency_ms REAL NOT NULL,
+    nano_in_tokens INTEGER NOT NULL,
+    nano_out_tokens INTEGER NOT NULL,
+    nano_power_w REAL,             -- measured GPU power while serving
+    nano_energy_j REAL,
+    aws_latency_ms REAL,           -- NULL until the mirrored call returns
+    aws_in_tokens INTEGER,
+    aws_out_tokens INTEGER,
+    aws_request_bytes INTEGER,     -- attack data that left the building
+    aws_cost_usd REAL,
+    aws_ok INTEGER,
+    aws_error TEXT,
+    aws_model TEXT,
+    aws_region TEXT
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

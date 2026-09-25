@@ -7,6 +7,7 @@ computed from config.CLOUD_PRICE_*.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -99,3 +100,20 @@ def timed_call(
         finally:
             if owns_conn:
                 conn.close()
+
+        # Comparison mode: replay the same prompt on the same model on AWS, in the
+        # background. Only the Qwen writer has a Bedrock twin (the Gemma verifier
+        # doesn't), and a measurement must never break the product path.
+        if ok and provider == "nano" and model == config.WRITER_MODEL_NAME and not uds:
+            try:
+                from . import cloud_mirror
+
+                end_wall = time.time()
+                cloud_mirror.mirror(
+                    role=role, messages=messages, nano_latency_ms=latency_ms,
+                    nano_in_tokens=in_tokens, nano_out_tokens=out_tokens,
+                    started=end_wall - latency_ms / 1000, finished=end_wall,
+                    max_tokens=extra.get("max_tokens"), temperature=extra.get("temperature"),
+                )
+            except Exception:  # noqa: BLE001 - see comment above; logged, never raised
+                logging.getLogger(__name__).exception("AWS comparison mirror failed")
