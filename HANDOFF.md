@@ -4,6 +4,8 @@ Written 2026-09-24 (about 22:30 UTC) at the end of a planning-and-build session.
 
 **Read this whole file before writing code.** Sections 3 (organizer answers) and 9 (decisions) contain constraints that are easy to violate by accident.
 
+> **Status update, Sep 25 ~11:40 (supersedes section 0 and the NEXT STEPS checklist).** NEXT STEPS 1–14 are done and pushed to `main`: 68 tests pass, and both LLMs, the check model, the demo app, and the dashboard run live on the Nano. The README's "Results at a glance" has the measured outcomes, and `results/` has the raw files. Fine-tuned adapter: https://huggingface.co/Yukta3030/chameleon-edge-patchwriter. **Only step 15 (packaging) remains:** record the demo and the 2-min video, build the deck, fill the Drive folder, post on socials, flip the repo public, submit by 6 PM. To bring everything up from scratch: `scripts/serve_models.sh`, then `make serve-check`, `make serve-demo`, and `make serve-dashboard` in tmux. The dashboard's "Run red-team scenario" button takes ~2 min. Every live failure hit today, and its fix, is in the git log and in sections 5.4 and 6.4. Not built: the Nano gateway, and Jev (waitlist).
+
 ---
 
 ## 0. Status at a glance
