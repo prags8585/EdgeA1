@@ -16,7 +16,8 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from .. import cloud_mirror, config, db, router
+from .. import autopatch, cloud_mirror, config, db, router
+from ..honeypot import deception
 from ..redteam import scenario as redteam_scenario
 
 app = FastAPI(title="Chameleon Edge dashboard")
@@ -231,12 +232,37 @@ def try_request(req: TryRequest):
         "rule_id": result.get("rule_id"),
         "routed_to": result["routed_to"],
         "session_id": result.get("session_id"),
+        "blocked": result.get("blocked"),
+        "patch_job_id": result.get("patch_job_id"),
     }
     if result["routed_to"] == "honeypot":
         out["honeypot_reply"] = result["honeypot_reply"]
-    else:
+    elif result["routed_to"] == "app":
         out["app_response"] = _forward_to_app(req.target, inputs)
     return out
+
+
+@app.get("/api/patch-jobs")
+def patch_jobs(limit: int = 30):
+    conn = _conn()
+    try:
+        return autopatch.recent(conn, limit)
+    finally:
+        conn.close()
+
+
+@app.get("/api/honeytokens/latest")
+def latest_honeytoken():
+    """Demo helper: the admin credentials the honeypot most recently leaked --
+    exactly what an attacker would copy out of its reply."""
+    conn = _conn()
+    try:
+        creds = deception.latest(conn)
+    finally:
+        conn.close()
+    if creds is None:
+        raise HTTPException(status_code=404, detail="nothing leaked yet -- attack the honeypot first")
+    return creds
 
 
 class CompareMode(BaseModel):
@@ -280,7 +306,7 @@ def reset_demo():
         # Children before parents: attack_events -> sessions and patch_events -> patches
         # are foreign keys (enforced), so the other order fails once real data exists.
         for table in ("attack_events", "patch_events", "sessions", "patches", "requests", "llm_calls",
-                      "comparisons", "runs"):
+                      "comparisons", "honeytokens", "patch_jobs", "runs"):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
         return {"ok": True}

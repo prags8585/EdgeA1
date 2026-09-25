@@ -92,6 +92,26 @@ CREATE TABLE IF NOT EXISTS comparisons (
     aws_region TEXT
 );
 
+CREATE TABLE IF NOT EXISTS honeytokens (
+    token TEXT PRIMARY KEY,        -- a fake secret handed to one attacker session
+    session_id TEXT NOT NULL,      -- which session it was leaked to (no FK: survives session cleanup order)
+    kind TEXT NOT NULL,            -- 'admin_password' | 'password_hash' | 'api_key' | 'card'
+    username TEXT,
+    ts REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS patch_jobs (
+    id TEXT PRIMARY KEY,
+    ts REAL NOT NULL,
+    field TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    attack_type TEXT NOT NULL,
+    status TEXT NOT NULL,          -- 'queued' | 'running' | 'approved' | 'rejected' | 'error' | 'skipped'
+    patch_id TEXT,
+    detail TEXT,
+    finished_ts REAL
+);
+
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

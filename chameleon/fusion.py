@@ -64,4 +64,6 @@ def decide(field_inputs: dict[str, str], conn=None) -> dict:
         "jev_score": jev_score,
         "reason": reason,
         "rule_id": rule_hit["id"] if rule_hit else None,
+        # The field the classifier found most suspicious -- what a patch should target.
+        "worst_field": list(field_inputs)[nano.get("worst_input_index", 0)],
     }

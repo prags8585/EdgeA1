@@ -57,15 +57,15 @@ def run(
 
     progress(f"normal traffic ({len(benign)} requests)")
     for text in benign:
-        events.append({"phase": "benign", "text": text, **router.handle_request({"q": text}, conn=conn)})
+        events.append({"phase": "benign", "text": text, **router.handle_request({"q": text}, conn=conn, auto_patch=False)})
     progress(f"SQL injection ({len(sqli)} requests)")
     for text in sqli:
-        events.append({"phase": "sqli", "text": text, **router.handle_request({"q": text}, conn=conn)})
+        events.append({"phase": "sqli", "text": text, **router.handle_request({"q": text}, conn=conn, auto_patch=False)})
     progress(f"prompt injection ({len(prompt_injection)} requests)")
     for text in prompt_injection:
         events.append({
             "phase": "prompt_injection", "text": text,
-            **router.handle_request({"message": text}, conn=conn),
+            **router.handle_request({"message": text}, conn=conn, auto_patch=False),
         })
 
     # Held out of training on purpose: expected to slip through the check
@@ -73,7 +73,7 @@ def run(
     leaked_wave_1 = []
     progress(f"wave 1: novel path traversal ({len(traversal_wave_1)} requests)")
     for name in traversal_wave_1:
-        result = router.handle_request({"name": name}, conn=conn)
+        result = router.handle_request({"name": name}, conn=conn, auto_patch=False)
         leaked = result["decision"] == "safe"
         events.append({"phase": "traversal_wave_1", "text": name, "leaked": leaked, **result})
         if leaked:
@@ -100,7 +100,7 @@ def run(
     leaked_wave_2 = 0
     progress(f"wave 2: same attack type ({len(traversal_wave_2)} requests)")
     for name in traversal_wave_2:
-        result = router.handle_request({"name": name}, conn=conn)
+        result = router.handle_request({"name": name}, conn=conn, auto_patch=False)
         leaked = result["decision"] == "safe"
         events.append({"phase": "traversal_wave_2", "text": name, "leaked": leaked, **result})
         if leaked:
@@ -121,9 +121,10 @@ def run(
 def summarize(result: dict, seconds: float) -> dict:
     by_phase: dict[str, dict] = {}
     for e in result["events"]:
-        p = by_phase.setdefault(e["phase"], {"n": 0, "rerouted_to_honeypot": 0})
+        p = by_phase.setdefault(e["phase"], {"n": 0, "rerouted_to_honeypot": 0, "blocked_by_patch": 0})
         p["n"] += 1
         p["rerouted_to_honeypot"] += e["routed_to"] == "honeypot"
+        p["blocked_by_patch"] += e["routed_to"] == "blocked"
     patch = result["patch_result"] or {}
     return {
         "seconds": round(seconds, 1),
