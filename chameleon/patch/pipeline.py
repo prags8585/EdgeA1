@@ -35,7 +35,7 @@ def run(
     for attempt in range(1, max_retries + 1):
         rule = patch_writer.write_rule(
             attack_type, attack_payloads, benign_examples,
-            rule_id=f"{attack_type}-{attempt}", feedback=feedback,
+            rule_id=f"{attack_type}-{attempt}", feedback=feedback, field=field,
         )
         patch_id = store.propose(conn, rule, writer_model)
 

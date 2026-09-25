@@ -1,0 +1,10 @@
+# Separate from the project venv: fine-tuning needs a CUDA torch build, and we
+# don't touch HP's /opt/hp/zrt/venv. Same torch build ZRT ships (GB10 / CUDA 13).
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.11.0
+transformers>=4.56
+peft>=0.17
+trl>=0.23
+accelerate>=1.10
+datasets>=2.18
+pandas>=2.0

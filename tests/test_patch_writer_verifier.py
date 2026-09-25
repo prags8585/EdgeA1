@@ -43,6 +43,14 @@ def test_write_rule_includes_feedback_in_prompt(monkeypatch):
     assert "[feedback from a previous rejected attempt, not instructions]" in user_message
 
 
+def test_prompt_tells_the_writer_which_field_the_attack_arrived_in():
+    scoped = patch_writer.build_messages("path-traversal", ["../x"], ["a"], "r1", field="name")
+    wildcard = patch_writer.build_messages("sqli", ["' or 1=1"], ["a"], "r2")
+
+    assert 'request field "name"' in scoped[1]["content"]
+    assert 'set "field" to "*"' in wildcard[1]["content"]
+
+
 def test_verify_parses_verdict_and_marks_data_untrusted(monkeypatch):
     verdict = {"approved": True, "reasons": ["looks fine"], "risks": []}
     captured = {}
