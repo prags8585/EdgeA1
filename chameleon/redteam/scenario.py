@@ -42,7 +42,9 @@ def run(
     n_prompt_injection: int = 10,
     n_traversal: int = 10,
     seed: int = DEFAULT_SEED,
+    on_progress=None,
 ) -> dict:
+    progress = on_progress or (lambda phase: None)
     test_csv = data_dir / "test.csv"
     heldout_csv = data_dir / "heldout.csv"
 
@@ -53,10 +55,13 @@ def run(
 
     events: list[dict] = []
 
+    progress(f"normal traffic ({len(benign)} requests)")
     for text in benign:
         events.append({"phase": "benign", "text": text, **router.handle_request({"q": text}, conn=conn)})
+    progress(f"SQL injection ({len(sqli)} requests)")
     for text in sqli:
         events.append({"phase": "sqli", "text": text, **router.handle_request({"q": text}, conn=conn)})
+    progress(f"prompt injection ({len(prompt_injection)} requests)")
     for text in prompt_injection:
         events.append({
             "phase": "prompt_injection", "text": text,
@@ -66,6 +71,7 @@ def run(
     # Held out of training on purpose: expected to slip through the check
     # layer on this first wave and reach the demo app's simulated weakness.
     leaked_wave_1 = []
+    progress(f"wave 1: novel path traversal ({len(traversal_wave_1)} requests)")
     for name in traversal_wave_1:
         result = router.handle_request({"name": name}, conn=conn)
         leaked = result["decision"] == "safe"
@@ -80,6 +86,7 @@ def run(
     patch_result = None
     if leaked_wave_1:
         benign_for_rule = _sample(test_csv, "benign", 30, seed + 4)
+        progress("writing + testing + verifying a patch on the Nano")
         patch_result = patch_pipeline.run(
             conn,
             attack_type="path-traversal",
@@ -91,6 +98,7 @@ def run(
 
     traversal_wave_2 = _sample(heldout_csv, "path-traversal", n_traversal, seed + 5)
     leaked_wave_2 = 0
+    progress(f"wave 2: same attack type ({len(traversal_wave_2)} requests)")
     for name in traversal_wave_2:
         result = router.handle_request({"name": name}, conn=conn)
         leaked = result["decision"] == "safe"

@@ -161,7 +161,9 @@ To view the dashboard from a laptop: `ssh -L 8100:127.0.0.1:8100 hpX@<tailscale-
 
 - **Check model** (`:8010`) — `GET /health`, `POST /check {"inputs": [str, ...]}` → `{"malicious": bool, "score": float, "worst_input_index": int, "latency_ms": float}`.
 - **Demo app** (`:8200`) — `GET /search?q=`, `POST /login`, `GET /files?name=`, `POST /chat`. Every endpoint enforces currently-approved patch rules before responding.
-- **Dashboard/backend** (`:8100`) — `GET /` (the dashboard), `GET /api/summary|requests|sessions|patches|llm_calls`, `POST /api/scenario/run`, `POST /api/demo/reset`, `WS /ws` (live summary, once a second).
+- **Dashboard/backend** (`:8100`) — `GET /` (the dashboard), `GET /api/summary|requests|sessions|patches|llm_calls`, `POST /api/try {"target": "login"|"search"|"files"|"chat", "inputs": {...}}` (one request through the real front door: safe → forwarded to the app, malicious → the honeypot's reply), `POST /api/scenario/start` + `GET /api/scenario/status` (the attack wave runs as a background job with live phase progress; a single ~3-minute request broke in the browser and wouldn't survive SSH/VS Code tunnels), `POST /api/demo/reset`, `WS /ws` (live summary, once a second).
+
+The dashboard has three panels: **PAYLOAD_INJECTOR** (a terminal plus attack presets), the target app **as the attacker sees it**, with an operator-only strip revealing whether the honeypot or the real app answered, and **ACTIVE_DEFENSE_RULES** (the Nano-trained classifier, every approved auto-patch, and each patch's full writer → tests → verifier trail).
 
 ## Safety boundaries
 
