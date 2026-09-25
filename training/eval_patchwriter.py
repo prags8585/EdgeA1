@@ -8,7 +8,11 @@ both (model="base7b" = base, model="patchwriter" = fine-tuned):
       --extra '--max-model-len=4096'
 
 Then, from the repo root with the project venv:
-    DB_PATH=data/training.db python3 -m training.eval_patchwriter --models base7b patchwriter [writer]
+    DB_PATH=data/training.db python3 -m training.eval_patchwriter --models base7b patchwriter writer \
+      --uds base7b=/opt/hp/zrt/run/vllm-base7b.sock patchwriter=/opt/hp/zrt/run/vllm-base7b.sock
+
+The ZRT proxy routes only by service label, so the LoRA adapter (and, for
+consistency, its base) is reached over the vLLM backend's own socket.
 
 Every model gets the identical production prompt (chameleon.patch.writer.
 build_messages) with JSON-schema constrained output, and every rule is
@@ -59,13 +63,13 @@ def build_tasks(data_dir: Path, per_family: int, seed: int) -> list[dict]:
     return tasks
 
 
-def score(task: dict, model: str) -> dict:
+def score(task: dict, model: str, uds: str | None = None) -> dict:
     field = task["field"]
     check_field = "q" if field == "*" else field
     try:
         rule = patch_writer.write_rule(
             task["family"], task["shown_attacks"], task["shown_benign"],
-            rule_id=f"{task['family']}-eval-{task['i']}", field=field, model=model,
+            rule_id=f"{task['family']}-eval-{task['i']}", field=field, model=model, uds=uds,
         )
     except Exception as exc:
         return {"valid": False, "error": str(exc)[:200]}
@@ -104,6 +108,8 @@ def summarize(results: list[dict]) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", nargs="+", required=True, help="served-as names, e.g. base7b patchwriter writer")
+    parser.add_argument("--uds", nargs="*", default=[], metavar="MODEL=SOCKET",
+                        help="reach MODEL via a vLLM backend socket (needed for LoRA adapters behind ZRT)")
     parser.add_argument("--per-family", type=int, default=40)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--seed", type=int, default=7)
@@ -115,9 +121,10 @@ def main() -> None:
     report = {"eval_families": sorted(EVAL_FAMILIES), "tasks_per_family": args.per_family,
               "max_unseen_fpr": MAX_UNSEEN_FPR, "models": {}}
 
+    sockets = dict(item.split("=", 1) for item in args.uds)
     for model in args.models:
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            results = list(pool.map(lambda t: score(t, model), tasks))
+            results = list(pool.map(lambda t: score(t, model, sockets.get(model)), tasks))
         by_family = {
             fam: summarize([r for r, t in zip(results, tasks) if t["family"] == fam]) for fam in EVAL_FAMILIES
         }

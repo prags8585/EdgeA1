@@ -95,12 +95,14 @@ def write_rule(
     feedback: str | None = None,
     field: str = "*",
     model: str | None = None,
+    uds: str | None = None,
 ) -> dict:
     messages = build_messages(attack_type, attack_payloads, benign_examples, rule_id, field, feedback)
     text = llm.timed_call(
         role="writer",
         model=model or config.WRITER_MODEL_NAME,
         messages=messages,
+        uds=uds,
         response_format={"type": "json_schema", "json_schema": {"name": "rule", "schema": RULE_SCHEMA, "strict": True}},
         placement_reason="default_nano",
         max_tokens=MAX_OUTPUT_TOKENS,

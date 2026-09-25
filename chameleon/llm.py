@@ -33,8 +33,14 @@ def timed_call(
     placement_reason: str | None = None,
     response_format: dict | None = None,
     timeout: float = 120.0,
+    uds: str | None = None,
     **extra: Any,
 ) -> str:
+    """uds: talk to a vLLM backend's Unix socket directly instead of the ZRT
+    proxy. Needed for LoRA adapters -- the proxy routes only by the service's
+    own label and returns 'unknown model name' for adapters served inside it."""
+    if uds:
+        base_url = "http://localhost/v1"
     url = (base_url or config.ZRT_PROXY_URL).rstrip("/") + "/chat/completions"
     config.assert_local(url, allow_cloud=(provider == "cloud"))
 
@@ -49,7 +55,9 @@ def timed_call(
     start = time.perf_counter()
     ok, error, text, usage = True, None, "", {}
     try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+        transport = httpx.HTTPTransport(uds=uds) if uds else None
+        with httpx.Client(transport=transport, timeout=timeout) as client:
+            resp = client.post(url, json=payload, headers=headers)
         resp.raise_for_status()
         data = resp.json()
         text = _extract_text(data)
