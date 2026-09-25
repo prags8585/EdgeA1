@@ -63,6 +63,18 @@ def run(
             continue
         store.log_event(conn, patch_id, "normal_traffic_test", "pass")
 
+        slow_input = patch_tests.redos_offender(rule)
+        if slow_input is not None:
+            store.log_event(conn, patch_id, "redos_test", "fail", f"timed out on {slow_input[:40]!r}...")
+            store.set_status(conn, patch_id, "rejected")
+            feedback = (
+                f"Your pattern {rule['pattern']!r} took too long on a long input starting "
+                f"{slow_input[:40]!r} (catastrophic backtracking). Avoid nested or overlapping "
+                "quantifiers like (a+)+, (\\w+\\s?)*, or (.*x){n}."
+            )
+            continue
+        store.log_event(conn, patch_id, "redos_test", "pass")
+
         verdict = patch_verifier.verify(rule, attack_payloads[:5])
         store.log_event(conn, patch_id, "verifier", "pass" if verdict["approved"] else "fail",
                          "; ".join(verdict["reasons"]) or None)

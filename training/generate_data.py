@@ -75,7 +75,21 @@ def check_rule(rule, shown_attacks, shown_benign, unseen_benign, field) -> tuple
             f"The rule blocked benign traffic; it must not block real users. "
             f"Your pattern was {rule['pattern']!r}. It wrongly blocked: {', '.join(repr(t) for t in fp[:10])}"
         )
+    slow = patch_tests.redos_offender(rule)
+    if slow is not None:
+        return False, (
+            f"Your pattern {rule['pattern']!r} took too long on a long input starting {slow[:40]!r} "
+            "(catastrophic backtracking). Avoid nested or overlapping quantifiers."
+        )
     return True, None
+
+
+def drop_redos_examples(path: Path) -> tuple[int, int]:
+    """Filter an existing JSONL in place (for runs made before the ReDoS check existed)."""
+    rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+    safe = [r for r in rows if patch_tests.redos_offender(json.loads(r["completion"])) is None]
+    path.write_text("".join(json.dumps(r) + "\n" for r in safe))
+    return len(rows), len(safe)
 
 
 def make_example(i: int, attacks: dict, benign: dict, seed: int, max_attempts: int) -> dict:

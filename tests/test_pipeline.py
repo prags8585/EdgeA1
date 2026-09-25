@@ -91,6 +91,32 @@ def test_retry_feedback_names_the_payloads_the_rule_missed(tmp_path, monkeypatch
     assert USELESS_RULE["pattern"] in feedback_seen[1]
 
 
+def test_pipeline_rejects_redos_prone_rule_before_the_verifier_sees_it(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    # Blocks the attacks, passes normal traffic -- but backtracks catastrophically.
+    redos_rule = {**GOOD_RULE, "id": "sqli-redos", "pattern": r"union\s+select|(\w|\d)+!$"}
+    rules_in_order = [redos_rule, GOOD_RULE]
+    feedback_seen = []
+
+    def _write_rule(*a, feedback=None, **k):
+        feedback_seen.append(feedback)
+        return rules_in_order.pop(0)
+
+    verified = []
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
+    monkeypatch.setattr(patch_verifier, "verify",
+                        lambda rule, *a, **k: verified.append(rule) or {"approved": True, "reasons": [], "risks": []})
+
+    result = pipeline.run(
+        conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+        benign_examples=BENIGN, writer_model="writer-model",
+    )
+
+    assert result["status"] == "approved" and result["attempts"] == 2
+    assert verified == [GOOD_RULE]
+    assert "backtracking" in feedback_seen[1]
+
+
 def test_pipeline_rejects_when_verifier_disapproves(tmp_path, monkeypatch):
     conn = _conn(tmp_path)
     monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)

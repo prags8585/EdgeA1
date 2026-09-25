@@ -5,7 +5,28 @@ repeatable proof that doesn't depend on either model's opinion.
 """
 from __future__ import annotations
 
+import regex
+
 from . import rules
+
+# Long inputs built from the characters attack patterns tend to quantify over.
+# A safe pattern handles every one well inside the budget.
+ADVERSARIAL_INPUTS = [
+    "a" * 10_000 + "!", "1" * 10_000 + "x", " " * 10_000 + "x", "word " * 2_000 + "!",
+    "../" * 3_000 + "x", "." * 10_000 + "/", "/" * 10_000 + "x", "%2e" * 3_000 + "x",
+    "<" * 10_000 + "x", "'" * 10_000 + "x", "-" * 10_000 + "x", "=" * 10_000 + "(",
+]
+REDOS_BUDGET_S = 0.1
+
+
+def redos_offender(rule: dict) -> str | None:
+    """The first adversarial input the pattern can't finish within budget, or None."""
+    for text in ADVERSARIAL_INPUTS:
+        try:
+            regex.search(rule["pattern"], text, regex.IGNORECASE, timeout=REDOS_BUDGET_S)
+        except TimeoutError:
+            return text
+    return None
 
 
 def missed_payloads(rule: dict, attack_payloads: list[str], field: str = "q") -> list[str]:
