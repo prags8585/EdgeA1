@@ -87,6 +87,8 @@ BEDROCK_PRICE_IN_PER_1M = float(os.getenv("BEDROCK_PRICE_IN_PER_1M", "0.15"))
 BEDROCK_PRICE_OUT_PER_1M = float(os.getenv("BEDROCK_PRICE_OUT_PER_1M", "1.20"))
 ENTERPRISE_DISCOUNT = float(os.getenv("ENTERPRISE_DISCOUNT", "0.20"))
 COMPARE_WITH_AWS = os.getenv("COMPARE_WITH_AWS", "false").lower() == "true"
+# Current METRICS_WITH_AWS switch, shared by all services (written by the dashboard toggle).
+METRICS_MODE_FILE = Path(os.getenv("METRICS_MODE_FILE", str(ROOT / "data" / "metrics_mode")))
 # Nano cost inputs. The ZGX Nano's price isn't published on HP's store; the
 # default is the $3,999 launch price of NVIDIA's DGX Spark (same GB10 chip) as
 # a labelled stand-in -- set NANO_PRICE_USD to the real figure if known.

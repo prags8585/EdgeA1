@@ -28,7 +28,11 @@ from pathlib import Path
 
 from . import config, db
 
-_state = {"enabled": config.COMPARE_WITH_AWS}
+# The on/off switch is shared by every service through a small file: the
+# dashboard flips it, but Qwen calls also happen in the decoy (honeypot replies)
+# and the gateway (auto-patch jobs), which are separate processes. The file is
+# re-read at most once a second. "enabled": None means "use the file".
+_state = {"enabled": None, "read_at": 0.0, "cached": config.COMPARE_WITH_AWS}
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="aws-mirror")
 _client = None
 _client_lock = threading.Lock()
@@ -38,12 +42,27 @@ def configured() -> bool:
     return bool(os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"))
 
 
+def _switch() -> bool:
+    if _state["enabled"] is not None:  # pinned (tests)
+        return _state["enabled"]
+    now = time.time()
+    if now - _state["read_at"] > 1.0:
+        try:
+            _state["cached"] = config.METRICS_MODE_FILE.read_text().strip() == "on"
+        except OSError:
+            _state["cached"] = config.COMPARE_WITH_AWS
+        _state["read_at"] = now
+    return _state["cached"]
+
+
 def enabled() -> bool:
-    return _state["enabled"] and configured()
+    return _switch() and configured()
 
 
 def set_enabled(on: bool) -> None:
-    _state["enabled"] = bool(on)
+    config.METRICS_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config.METRICS_MODE_FILE.write_text("on" if on else "off")
+    _state.update(cached=bool(on), read_at=time.time())
     if on:
         _power.ensure_started()  # so the first mirrored request already has power readings
 
@@ -99,6 +118,9 @@ def energy_for(start: float, end: float) -> tuple[float | None, float | None]:
     """(average watts, joules) drawn while a request ran."""
     _power.ensure_started()
     window = _power.window(start, end) or ([_power.samples[-1][1]] if _power.samples else [])
+    if not window:  # first call in a freshly started service: sample once now
+        watts = read_gpu_power_w()
+        window = [watts] if watts is not None else []
     if not window:
         return None, None
     avg_w = statistics.mean(window)

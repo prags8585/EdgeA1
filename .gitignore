@@ -16,3 +16,4 @@ data/redis/
 node_modules/
 .env.local
 .env*.local
+data/metrics_mode

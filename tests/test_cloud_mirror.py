@@ -110,3 +110,13 @@ def test_projection_breakeven_and_capacity(mirror_env, monkeypatch):
     assert proj["breakeven_on_demand_per_day"] == pytest.approx(100.0 / 0.03)
     over_capacity = [p for p in proj["points"] if p["attacks_per_day"] > 200_000]
     assert over_capacity and all(p["nano_usd_month"] is None for p in over_capacity)
+
+
+def test_switch_is_shared_through_the_mode_file(monkeypatch):
+    from chameleon import config
+    monkeypatch.setitem(cloud_mirror._state, "enabled", None)
+    cloud_mirror.set_enabled(True)
+    assert config.METRICS_MODE_FILE.read_text() == "on"
+    config.METRICS_MODE_FILE.write_text("off")  # as another process would
+    monkeypatch.setitem(cloud_mirror._state, "read_at", 0.0)
+    assert cloud_mirror._switch() is False

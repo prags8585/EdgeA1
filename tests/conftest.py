@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 import pytest
 
 from chameleon.patch import integrate, redis_store
@@ -9,6 +12,7 @@ def _no_real_jev(monkeypatch):
     from chameleon import config
     monkeypatch.setattr(config, "AI_GATEWAY_API_KEY", "")
     monkeypatch.setattr(config, "JEV_API_KEY", "")
+    monkeypatch.setattr(config, "METRICS_MODE_FILE", Path(tempfile.mkdtemp()) / "metrics_mode")
 
 
 @pytest.fixture(autouse=True)
