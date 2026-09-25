@@ -18,15 +18,23 @@ VERDICT_SCHEMA = {
         "approved": {"type": "boolean"},
         "reasons": {"type": "array", "items": {"type": "string"}},
         "risks": {"type": "array", "items": {"type": "string"}},
+        "bypass_examples": {"type": "array", "items": {"type": "string"}},
+        "false_positive_examples": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["approved", "reasons", "risks"],
+    "required": ["approved", "reasons", "risks", "bypass_examples", "false_positive_examples"],
 }
 
 SYSTEM_PROMPT = """You are a security reviewer checking a proposed input-validation rule \
 before it goes live. Output ONLY a JSON object: {"approved": bool, "reasons": [string], \
-"risks": [string]}. Reject if the regex is overly broad (would block normal input unrelated \
-to the attack), is vulnerable to catastrophic-backtracking ReDoS, or is trivially bypassed \
-(e.g. by re-encoding, case changes, or whitespace the pattern doesn't account for).
+"risks": [string], "bypass_examples": [string], "false_positive_examples": [string]}. \
+Reject if the regex is overly broad (would block normal input unrelated to the attack), is \
+vulnerable to catastrophic-backtracking ReDoS, or is trivially bypassed (e.g. by re-encoding, \
+case changes, or whitespace the pattern doesn't account for).
+
+Every objection must be backed by concrete, literal example inputs, which the system will run \
+against the rule: "bypass_examples" are attack inputs you believe the rule fails to block; \
+"false_positive_examples" are legitimate user inputs you believe it wrongly blocks. Objections \
+whose examples turn out not to hold are discarded, so give real strings, not descriptions.
 
 How rules run: matching is always case-insensitive. Type "regex_deny" matches the raw input. \
 Type "normalize_then_deny" first URL-decodes the input repeatedly (until it stops changing) \
@@ -59,6 +67,9 @@ def verify(rule: dict, attack_sample: list[str], measurements: dict | None = Non
         messages=messages,
         response_format={"type": "json_schema", "json_schema": {"name": "verdict", "schema": VERDICT_SCHEMA, "strict": True}},
         placement_reason="default_nano",
-        max_tokens=600,
+        max_tokens=800,
     )
-    return json.loads(text)
+    verdict = json.loads(text)
+    verdict.setdefault("bypass_examples", [])
+    verdict.setdefault("false_positive_examples", [])
+    return verdict

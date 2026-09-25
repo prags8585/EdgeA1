@@ -171,18 +171,49 @@ def test_verifier_receives_measured_facts(tmp_path, monkeypatch):
     assert captured["worst_case_match_ms_on_2kb_adversarial_inputs"] < captured["runtime_budget_ms"]
 
 
-def test_pipeline_rejects_when_verifier_disapproves(tmp_path, monkeypatch):
+def _verifier_says(**verdict):
+    base = {"approved": False, "reasons": [], "risks": [], "bypass_examples": [], "false_positive_examples": []}
+    return lambda *a, **k: {**base, **verdict}
+
+
+def test_unsubstantiated_verifier_rejection_is_overridden(tmp_path, monkeypatch):
     conn = _conn(tmp_path)
     monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
-    monkeypatch.setattr(
-        patch_verifier, "verify",
-        lambda *a, **k: {"approved": False, "reasons": ["pattern too broad"], "risks": ["blocks normal search"]},
-    )
+    # Objects, but its "false positive" is not actually blocked by the rule.
+    monkeypatch.setattr(patch_verifier, "verify", _verifier_says(
+        reasons=["pattern too broad"], false_positive_examples=["blue shirt"]))
 
-    result = pipeline.run(
-        conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
-        benign_examples=BENIGN, writer_model="writer-model", max_retries=1,
-    )
+    result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                          benign_examples=BENIGN, writer_model="writer-model", max_retries=1)
+
+    assert result["status"] == "approved"
+    event = conn.execute("SELECT result, reason FROM patch_events WHERE stage='verifier'").fetchone()
+    assert event["result"] == "overridden" and "pattern too broad" in event["reason"]
+
+
+def test_confirmed_false_positive_from_verifier_rejects(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
+    # "please union select my favorites" really is blocked by GOOD_RULE.
+    monkeypatch.setattr(patch_verifier, "verify", _verifier_says(
+        false_positive_examples=["please union select my favorites"]))
+
+    result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                          benign_examples=BENIGN, writer_model="writer-model", max_retries=2)
 
     assert result["status"] == "rejected"
-    assert "pattern too broad" in result["feedback"]
+    assert "union select my favorites" in result["feedback"]
+
+
+def test_confirmed_bypass_retries_then_approves_best_with_known_bypasses(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
+    # A real bypass the rule misses, every attempt.
+    monkeypatch.setattr(patch_verifier, "verify", _verifier_says(bypass_examples=["1 UNION/**/SELECT null"]))
+
+    result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                          benign_examples=BENIGN, writer_model="writer-model", max_retries=2)
+
+    assert result["status"] == "approved"
+    assert result["known_bypasses"] == ["1 UNION/**/SELECT null"]
+    assert conn.execute("SELECT COUNT(*) AS n FROM patches WHERE status='approved'").fetchone()["n"] == 1

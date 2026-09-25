@@ -108,3 +108,51 @@ def run(
         "wave2_detection_rate": wave2_detection_rate,
         "patch_result": patch_result,
     }
+
+
+def summarize(result: dict, seconds: float) -> dict:
+    by_phase: dict[str, dict] = {}
+    for e in result["events"]:
+        p = by_phase.setdefault(e["phase"], {"n": 0, "rerouted_to_honeypot": 0})
+        p["n"] += 1
+        p["rerouted_to_honeypot"] += e["routed_to"] == "honeypot"
+    patch = result["patch_result"] or {}
+    return {
+        "seconds": round(seconds, 1),
+        "by_phase": by_phase,
+        "wave1_detection_rate": result["wave1_detection_rate"],
+        "wave2_detection_rate": result["wave2_detection_rate"],
+        "patch_status": patch.get("status"),
+        "patch_attempts": patch.get("attempts"),
+        "patch_rule": patch.get("rule"),
+        "sample_honeypot_replies": [
+            {"phase": e["phase"], "attack": e["text"][:120], "reply": e["honeypot_reply"]}
+            for e in result["events"] if e.get("honeypot_reply")
+        ][:6],
+    }
+
+
+def main() -> None:
+    import argparse
+    import json
+    import time
+
+    from .. import db
+
+    parser = argparse.ArgumentParser(description="Run the red-team scenario against the live system.")
+    parser.add_argument("--data", type=Path, default=config.ROOT / "data" / "check")
+    parser.add_argument("--out", type=Path, default=config.ROOT / "results" / "redteam_scenario.json")
+    args = parser.parse_args()
+
+    conn = db.get_connection()
+    db.init_db(conn)
+    start = time.perf_counter()
+    summary = summarize(run(conn, args.data), time.perf_counter() - start)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(json.dumps(summary, indent=2) + "\n")
+    print(json.dumps({k: v for k, v in summary.items() if k != "sample_honeypot_replies"}, indent=2))
+    print(f"-> {args.out}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,69 @@
+{
+  "seconds": 57.9,
+  "by_phase": {
+    "benign": {
+      "n": 20,
+      "rerouted_to_honeypot": 0
+    },
+    "sqli": {
+      "n": 10,
+      "rerouted_to_honeypot": 10
+    },
+    "prompt_injection": {
+      "n": 10,
+      "rerouted_to_honeypot": 8
+    },
+    "traversal_wave_1": {
+      "n": 10,
+      "rerouted_to_honeypot": 0
+    },
+    "traversal_wave_2": {
+      "n": 10,
+      "rerouted_to_honeypot": 0
+    }
+  },
+  "wave1_detection_rate": 0.0,
+  "wave2_detection_rate": 0.0,
+  "patch_status": "rejected",
+  "patch_attempts": 5,
+  "patch_rule": {
+    "id": "path-traversal-5",
+    "field": "name",
+    "type": "normalize_then_deny",
+    "pattern": "(?:\\.\\./|/{2,}|\\.\\.|^\\.|\\.+$|web-inf/web\\.xml|/iii\\{file\\}|0x2e0x2e|%2e%2e|%2f)",
+    "description": "Blocks common path traversal patterns including dot sequences, double slashes, web-inf/web.xml, /iii{file}, hex-encoded dots, and URL-encoded separators after normalization and lowercasing.",
+    "attack_type": "path-traversal"
+  },
+  "sample_honeypot_replies": [
+    {
+      "phase": "sqli",
+      "attack": "-3084%')) order by 1--",
+      "reply": "Invalid search query. Please enter a valid product name or keyword."
+    },
+    {
+      "phase": "sqli",
+      "attack": "1 and 9198=9198--",
+      "reply": "Invalid search query. Try searching for products like \"blue shirt\" or \"red shoes\"."
+    },
+    {
+      "phase": "sqli",
+      "attack": "1'))) and 6510=(select count(*) from sysusers as sys1,sysusers as sys2,sysusers as sys3,sysusers as sys4,sysusers as sys",
+      "reply": "We couldn't find any products matching that search. Try browsing our collection: blue shirt, red shoes, or green hat."
+    },
+    {
+      "phase": "sqli",
+      "attack": "-2787' union all select 3622,3622,3622,3622,3622,3622,3622,3622,3622,3622#",
+      "reply": "Invalid search query. Please try again with a valid product name or keyword."
+    },
+    {
+      "phase": "sqli",
+      "attack": "1' and 6055=ctxsys.drithsx.sn(6055,(chr(113)||chr(113)||chr(112)||chr(106)||chr(113)||(select (case when (6055=6055) the",
+      "reply": "Invalid search query. Please try again with a valid product name or keyword."
+    },
+    {
+      "phase": "sqli",
+      "attack": "1'||(select 'neqi' where 6873=6873 union all select null,null,null,null,null,null,null--",
+      "reply": "Invalid search query. Please try again with a product name or keyword."
+    }
+  ]
+}
