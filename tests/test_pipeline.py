@@ -70,6 +70,27 @@ def test_pipeline_gives_up_after_max_retries(tmp_path, monkeypatch):
     assert "did not block" in result["feedback"]
 
 
+def test_retry_feedback_names_the_payloads_the_rule_missed(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    feedback_seen = []
+
+    def _write_rule(*a, feedback=None, **k):
+        feedback_seen.append(feedback)
+        return USELESS_RULE if len(feedback_seen) == 1 else GOOD_RULE
+
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
+    monkeypatch.setattr(patch_verifier, "verify", lambda *a, **k: {"approved": True, "reasons": [], "risks": []})
+
+    pipeline.run(
+        conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+        benign_examples=BENIGN, writer_model="writer-model",
+    )
+
+    assert feedback_seen[0] is None
+    assert repr(ATTACK_PAYLOADS[0]) in feedback_seen[1]
+    assert USELESS_RULE["pattern"] in feedback_seen[1]
+
+
 def test_pipeline_rejects_when_verifier_disapproves(tmp_path, monkeypatch):
     conn = _conn(tmp_path)
     monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)

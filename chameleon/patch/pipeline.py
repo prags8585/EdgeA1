@@ -13,6 +13,11 @@ from . import verifier as patch_verifier
 from . import writer as patch_writer
 
 
+def _sample(items: list[str], n: int = 10) -> str:
+    shown = ", ".join(repr(i) for i in items[:n])
+    return shown + (f" (and {len(items) - n} more)" if len(items) > n else "")
+
+
 def run(
     conn,
     *,
@@ -34,21 +39,29 @@ def run(
         )
         patch_id = store.propose(conn, rule, writer_model)
 
-        replay_ok = patch_tests.replay_test(rule, attack_payloads, field=field)
-        store.log_event(conn, patch_id, "replay_test", "pass" if replay_ok else "fail",
-                         None if replay_ok else "did not block all attack payloads")
-        if not replay_ok:
+        missed = patch_tests.missed_payloads(rule, attack_payloads, field=field)
+        store.log_event(conn, patch_id, "replay_test", "fail" if missed else "pass",
+                         f"did not block {len(missed)}/{len(attack_payloads)} attack payloads" if missed else None)
+        if missed:
             store.set_status(conn, patch_id, "rejected")
-            feedback = "The rule did not block all the attack payloads on replay."
+            feedback = (
+                f"The rule did not block {len(missed)} of the {len(attack_payloads)} attack payloads on replay. "
+                f"Your pattern was {rule['pattern']!r}. It missed: {_sample(missed)}"
+            )
             continue
 
-        normal_ok, fpr = patch_tests.normal_traffic_test(rule, benign_examples, field=field)
-        store.log_event(conn, patch_id, "normal_traffic_test", "pass" if normal_ok else "fail",
-                         None if normal_ok else f"false positive rate {fpr:.2%} on benign traffic")
-        if not normal_ok:
+        wrongly_blocked = patch_tests.false_positives(rule, benign_examples, field=field)
+        if wrongly_blocked:
+            fpr = len(wrongly_blocked) / len(benign_examples)
+            store.log_event(conn, patch_id, "normal_traffic_test", "fail",
+                             f"false positive rate {fpr:.2%} on benign traffic")
             store.set_status(conn, patch_id, "rejected")
-            feedback = f"The rule blocked {fpr:.0%} of benign traffic; it must not block real users."
+            feedback = (
+                f"The rule blocked {fpr:.0%} of benign traffic; it must not block real users. "
+                f"Your pattern was {rule['pattern']!r}. It wrongly blocked: {_sample(wrongly_blocked)}"
+            )
             continue
+        store.log_event(conn, patch_id, "normal_traffic_test", "pass")
 
         verdict = patch_verifier.verify(rule, attack_payloads[:5])
         store.log_event(conn, patch_id, "verifier", "pass" if verdict["approved"] else "fail",
