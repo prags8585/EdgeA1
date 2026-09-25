@@ -9,10 +9,12 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+import httpx
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
-from .. import config, db
+from .. import config, db, router
 from ..redteam import scenario as redteam_scenario
 
 app = FastAPI(title="Chameleon Edge dashboard")
@@ -138,12 +140,63 @@ def run_scenario():
         conn.close()
 
 
+# Which demo-app endpoint a field belongs to, so a request judged safe is
+# forwarded exactly the way the real app would receive it.
+FIELD_ROUTES = {
+    "q": ("GET", "/search"),
+    "name": ("GET", "/files"),
+    "message": ("POST", "/chat"),
+}
+
+
+class TryRequest(BaseModel):
+    field: str = Field(pattern="^(q|name|message)$")
+    value: str = Field(min_length=1, max_length=4000)
+
+
+def _forward_to_app(field: str, value: str) -> dict:
+    method, path = FIELD_ROUTES[field]
+    url = f"{config.DEMO_APP_URL}{path}"
+    try:
+        if method == "GET":
+            resp = httpx.get(url, params={field: value}, timeout=10)
+        else:
+            resp = httpx.post(url, json={field: value}, timeout=10)
+    except httpx.HTTPError as exc:
+        return {"status": None, "body": f"demo app unreachable: {exc}", "canary_leaked": False}
+    body = resp.text
+    return {"status": resp.status_code, "body": body, "canary_leaked": "CANARY-" in body}
+
+
+@app.post("/api/try")
+def try_request(req: TryRequest):
+    """Send one request through the real front door, the way live traffic goes."""
+    try:
+        result = router.handle_request({req.field: req.value})
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=503, detail=f"a model service is unreachable: {exc}") from exc
+    out = {
+        "decision": result["decision"],
+        "reason": result["reason"],
+        "nano_score": result["nano_score"],
+        "rule_id": result.get("rule_id"),
+        "routed_to": result["routed_to"],
+    }
+    if result["routed_to"] == "honeypot":
+        out["honeypot_reply"] = result["honeypot_reply"]
+    else:
+        out["app_response"] = _forward_to_app(req.field, req.value)
+    return out
+
+
 @app.post("/api/demo/reset")
 def reset_demo():
     """Wipe every table for a clean demo run. Trained models on disk are untouched."""
     conn = _conn()
     try:
-        for table in ("requests", "sessions", "attack_events", "patches", "patch_events", "llm_calls", "runs"):
+        # Children before parents: attack_events -> sessions and patch_events -> patches
+        # are foreign keys (enforced), so the other order fails once real data exists.
+        for table in ("attack_events", "patch_events", "sessions", "patches", "requests", "llm_calls", "runs"):
             conn.execute(f"DELETE FROM {table}")
         conn.commit()
         return {"ok": True}

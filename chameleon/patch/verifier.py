@@ -61,15 +61,24 @@ def verify(rule: dict, attack_sample: list[str], measurements: dict | None = Non
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
-    text = llm.timed_call(
-        role="verifier",
-        model=config.VERIFIER_MODEL_NAME,
-        messages=messages,
-        response_format={"type": "json_schema", "json_schema": {"name": "verdict", "schema": VERDICT_SCHEMA, "strict": True}},
-        placement_reason="default_nano",
-        max_tokens=800,
-    )
-    verdict = json.loads(text)
-    verdict.setdefault("bypass_examples", [])
-    verdict.setdefault("false_positive_examples", [])
-    return verdict
+    # Observed live: the verifier occasionally emits a runaway string that never
+    # closes, and one bad reply crashed the whole learning loop. Retry once, then
+    # report "no usable verdict" instead of raising.
+    for _ in range(2):
+        text = llm.timed_call(
+            role="verifier",
+            model=config.VERIFIER_MODEL_NAME,
+            messages=messages,
+            response_format={"type": "json_schema", "json_schema": {"name": "verdict", "schema": VERDICT_SCHEMA, "strict": True}},
+            placement_reason="default_nano",
+            max_tokens=800,
+        )
+        try:
+            verdict = json.loads(text)
+        except json.JSONDecodeError:
+            continue
+        verdict.setdefault("bypass_examples", [])
+        verdict.setdefault("false_positive_examples", [])
+        return verdict
+    return {"approved": False, "unusable": True, "reasons": ["verifier output was not valid JSON (twice)"],
+            "risks": [], "bypass_examples": [], "false_positive_examples": []}

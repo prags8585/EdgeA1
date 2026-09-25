@@ -191,18 +191,26 @@ def test_unsubstantiated_verifier_rejection_is_overridden(tmp_path, monkeypatch)
     assert event["result"] == "overridden" and "pattern too broad" in event["reason"]
 
 
-def test_confirmed_false_positive_from_verifier_rejects(tmp_path, monkeypatch):
+def test_verifier_false_positive_claim_is_feedback_not_a_veto(tmp_path, monkeypatch):
+    # The rule is clean on real benign traffic; the verifier's example is invented.
     conn = _conn(tmp_path)
-    monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
-    # "please union select my favorites" really is blocked by GOOD_RULE.
+    feedback_seen = []
+
+    def _write_rule(*a, feedback=None, **k):
+        feedback_seen.append(feedback)
+        return GOOD_RULE
+
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
     monkeypatch.setattr(patch_verifier, "verify", _verifier_says(
         false_positive_examples=["please union select my favorites"]))
 
     result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
                           benign_examples=BENIGN, writer_model="writer-model", max_retries=2)
 
-    assert result["status"] == "rejected"
-    assert "union select my favorites" in result["feedback"]
+    assert "union select my favorites" in feedback_seen[1]
+    assert "Keep blocking every attack payload" in feedback_seen[1]
+    assert result["status"] == "approved"
+    assert result["disputed_false_positives"] == ["please union select my favorites"]
 
 
 def test_confirmed_bypass_retries_then_approves_best_with_known_bypasses(tmp_path, monkeypatch):
@@ -217,3 +225,54 @@ def test_confirmed_bypass_retries_then_approves_best_with_known_bypasses(tmp_pat
     assert result["status"] == "approved"
     assert result["known_bypasses"] == ["1 UNION/**/SELECT null"]
     assert conn.execute("SELECT COUNT(*) AS n FROM patches WHERE status='approved'").fetchone()["n"] == 1
+
+
+def test_writer_invalid_output_is_retried_not_a_crash(tmp_path, monkeypatch):
+    import json as _json
+    conn = _conn(tmp_path)
+    calls = []
+
+    def _write_rule(*a, feedback=None, **k):
+        calls.append(feedback)
+        if len(calls) == 1:
+            raise _json.JSONDecodeError("Unterminated string", "{", 0)
+        return GOOD_RULE
+
+    monkeypatch.setattr(patch_writer, "write_rule", _write_rule)
+    monkeypatch.setattr(patch_verifier, "verify", _verifier_says(approved=True))
+
+    result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                          benign_examples=BENIGN, writer_model="writer-model")
+
+    assert result["status"] == "approved" and result["attempts"] == 2
+    assert "not a valid rule" in calls[1]
+
+
+def test_unusable_verifier_keeps_rule_as_candidate_and_never_crashes(tmp_path, monkeypatch):
+    conn = _conn(tmp_path)
+    monkeypatch.setattr(patch_writer, "write_rule", lambda *a, **k: GOOD_RULE)
+    monkeypatch.setattr(patch_verifier, "verify", _verifier_says(unusable=True, reasons=["not valid JSON"]))
+
+    result = pipeline.run(conn, attack_type="sqli", attack_payloads=ATTACK_PAYLOADS,
+                          benign_examples=BENIGN, writer_model="writer-model", max_retries=2)
+
+    assert result["status"] == "approved"
+    assert result["verifier_unusable"] is True
+
+
+def test_verifier_retries_once_on_malformed_json(monkeypatch):
+    import json as _json
+    from chameleon import llm
+    replies = iter(['{"approved": true, "reasons": ["ok"', _json.dumps(
+        {"approved": True, "reasons": [], "risks": [], "bypass_examples": [], "false_positive_examples": []})])
+    monkeypatch.setattr(llm, "timed_call", lambda **k: next(replies))
+
+    assert patch_verifier.verify(GOOD_RULE, ["x"])["approved"] is True
+
+
+def test_verifier_reports_unusable_after_two_malformed_replies(monkeypatch):
+    from chameleon import llm
+    monkeypatch.setattr(llm, "timed_call", lambda **k: '{"approved": tru')
+
+    verdict = patch_verifier.verify(GOOD_RULE, ["x"])
+    assert verdict["unusable"] is True and verdict["approved"] is False
