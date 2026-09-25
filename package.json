@@ -1,0 +1,32 @@
+{
+  "name": "chameleon-edge-ai-gateway",
+  "version": "1.0.0",
+  "description": "AI Gateway (AI SDK) examples for Chameleon Edge: calls Jev and other models through Vercel AI Gateway",
+  "scripts": {
+    "example": "tsx --env-file-if-exists=.env.local index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/prags8585/EdgeA1.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/prags8585/EdgeA1/issues"
+  },
+  "homepage": "https://github.com/prags8585/EdgeA1#readme",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ai": "^7.0.114"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -11,3 +11,8 @@ data/generated/
 models/
 
 data/redis/
+
+# Node (AI Gateway examples)
+node_modules/
+.env.local
+.env*.local
