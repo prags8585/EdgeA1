@@ -1,0 +1,94 @@
+{
+  "eval_families": [
+    "cmdi",
+    "path-traversal"
+  ],
+  "tasks_per_family": 40,
+  "max_unseen_fpr": 0.01,
+  "models": {
+    "base7b": {
+      "overall": {
+        "n": 80,
+        "valid_rate": 0.925,
+        "replay_pass_rate": 0.1625,
+        "full_pass_rate": 0.125,
+        "mean_unseen_recall": 0.3278,
+        "mean_unseen_fpr": 0.0038
+      },
+      "by_family": {
+        "path-traversal": {
+          "n": 40,
+          "valid_rate": 0.925,
+          "replay_pass_rate": 0.025,
+          "full_pass_rate": 0.025,
+          "mean_unseen_recall": 0.3314,
+          "mean_unseen_fpr": 0.0
+        },
+        "cmdi": {
+          "n": 40,
+          "valid_rate": 0.925,
+          "replay_pass_rate": 0.3,
+          "full_pass_rate": 0.225,
+          "mean_unseen_recall": 0.3243,
+          "mean_unseen_fpr": 0.0077
+        }
+      }
+    },
+    "patchwriter": {
+      "overall": {
+        "n": 80,
+        "valid_rate": 0.725,
+        "replay_pass_rate": 0.175,
+        "full_pass_rate": 0.15,
+        "mean_unseen_recall": 0.4713,
+        "mean_unseen_fpr": 0.0345
+      },
+      "by_family": {
+        "path-traversal": {
+          "n": 40,
+          "valid_rate": 0.85,
+          "replay_pass_rate": 0.225,
+          "full_pass_rate": 0.175,
+          "mean_unseen_recall": 0.6092,
+          "mean_unseen_fpr": 0.0588
+        },
+        "cmdi": {
+          "n": 40,
+          "valid_rate": 0.6,
+          "replay_pass_rate": 0.125,
+          "full_pass_rate": 0.125,
+          "mean_unseen_recall": 0.276,
+          "mean_unseen_fpr": 0.0001
+        }
+      }
+    },
+    "writer": {
+      "overall": {
+        "n": 80,
+        "valid_rate": 0.0,
+        "replay_pass_rate": 0,
+        "full_pass_rate": 0,
+        "mean_unseen_recall": null,
+        "mean_unseen_fpr": null
+      },
+      "by_family": {
+        "path-traversal": {
+          "n": 40,
+          "valid_rate": 0.0,
+          "replay_pass_rate": 0,
+          "full_pass_rate": 0,
+          "mean_unseen_recall": null,
+          "mean_unseen_fpr": null
+        },
+        "cmdi": {
+          "n": 40,
+          "valid_rate": 0.0,
+          "replay_pass_rate": 0,
+          "full_pass_rate": 0,
+          "mean_unseen_recall": null,
+          "mean_unseen_fpr": null
+        }
+      }
+    }
+  }
+}

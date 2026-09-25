@@ -1,5 +1,4 @@
-import json
-import subprocess
+import httpx
 
 from chameleon import db, llm
 from chameleon.orchestrator import cloud, dispatch, policy
@@ -12,29 +11,27 @@ def test_load_policy_has_expected_jobs():
     assert pol["cloud_fallback"]["provider"] == "anthropic"
 
 
-def test_nano_is_ready_true_when_zrt_reports_ready(monkeypatch):
-    payload = json.dumps({"processes": [{"label": "writer", "state": "Ready"}]})
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=payload, stderr=""),
-    )
+def _proxy_lists(monkeypatch, model_ids):
+    request = httpx.Request("GET", "http://127.0.0.1:8080/v1/models")
+    body = {"data": [{"id": m} for m in model_ids]}
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: httpx.Response(200, json=body, request=request))
+
+
+def test_nano_is_ready_true_when_proxy_routes_the_model(monkeypatch):
+    _proxy_lists(monkeypatch, ["writer", "verifier"])
     assert dispatch.nano_is_ready("writer") is True
 
 
-def test_nano_is_ready_false_when_dead_or_missing(monkeypatch):
-    payload = json.dumps({"processes": [{"label": "writer", "state": "Dead"}]})
-    monkeypatch.setattr(
-        subprocess, "run",
-        lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=payload, stderr=""),
-    )
+def test_nano_is_ready_false_when_proxy_does_not_list_it(monkeypatch):
+    # The real failure: zrt said "Ready" but the proxy only routed base7b.
+    _proxy_lists(monkeypatch, ["base7b", "patchwriter"])
     assert dispatch.nano_is_ready("writer") is False
-    assert dispatch.nano_is_ready("verifier") is False
 
 
-def test_nano_is_ready_false_on_subprocess_error(monkeypatch):
+def test_nano_is_ready_false_when_proxy_down(monkeypatch):
     def _raise(*a, **k):
-        raise FileNotFoundError("zrt not found")
-    monkeypatch.setattr(subprocess, "run", _raise)
+        raise httpx.ConnectError("connection refused")
+    monkeypatch.setattr(httpx, "get", _raise)
     assert dispatch.nano_is_ready("writer") is False
 
 

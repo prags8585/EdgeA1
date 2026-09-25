@@ -10,10 +10,15 @@
 # later starts ~6 min.
 set -euo pipefail
 
+# `zrt services` can report "Ready" before the proxy actually routes to the model
+# (observed: an eval got 404s from a "Ready" writer), so readiness means a real
+# completion succeeding through the proxy.
 wait_ready() {
   local label=$1
   echo "waiting for $label ..."
-  until zrt services --json 2>/dev/null | grep -A3 "\"label\": \"$label\"" | grep -q '"state": "Ready"'; do
+  until [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 http://127.0.0.1:8080/v1/chat/completions \
+      -H 'Content-Type: application/json' \
+      -d "{\"model\":\"$label\",\"messages\":[{\"role\":\"user\",\"content\":\"OK\"}],\"max_tokens\":2}")" = "200" ]; do
     if ! pgrep -f "vllm serve.*served-model-name $label" >/dev/null; then
       sleep 15
       pgrep -f "vllm serve.*served-model-name $label" >/dev/null || { echo "$label died; see /opt/hp/zrt/run/vllm-$label.log"; exit 1; }

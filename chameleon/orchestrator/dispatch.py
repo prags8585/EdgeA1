@@ -7,28 +7,26 @@ cost. That's what organizer answers 1 and 4 asked for (HANDOFF.md section 3).
 """
 from __future__ import annotations
 
-import json
-import subprocess
 import time
+
+import httpx
 
 from .. import config, db, llm
 from . import cloud, policy
 
 
 def nano_is_ready(model_label: str, timeout: float = 5.0) -> bool:
-    """Ask zrt directly whether this label's backend is up and Ready."""
+    """True if the ZRT proxy can actually route to this model right now.
+
+    Asks the proxy's /v1/models, which lists only routable models. Not
+    `zrt services`: on the Nano it reported a model "Ready" while the proxy
+    was still returning 404 for it.
+    """
     try:
-        result = subprocess.run(
-            ["zrt", "services", "--json"], capture_output=True, text=True, timeout=timeout,
-        )
-        if result.returncode != 0:
-            return False
-        data = json.loads(result.stdout)
-        return any(
-            p.get("label") == model_label and p.get("state") == "Ready"
-            for p in data.get("processes", [])
-        )
-    except (subprocess.SubprocessError, json.JSONDecodeError, FileNotFoundError):
+        resp = httpx.get(f"{config.ZRT_PROXY_URL.rstrip('/')}/models", timeout=timeout)
+        resp.raise_for_status()
+        return any(m.get("id") == model_label for m in resp.json().get("data", []))
+    except (httpx.HTTPError, ValueError):
         return False
 
 
