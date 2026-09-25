@@ -1,0 +1,13 @@
+{
+  "measured_at": "2026-09-25T11:30",
+  "machine": "spark-ec8",
+  "gpu": "NVIDIA GB10 (128 GB unified memory, 121.6 GB usable)",
+  "conditions": "writer + verifier + check-model API serving; LLM benchmark running concurrently",
+  "per_model_gib": {
+    "writer (Qwen3-Next-80B-A3B NVFP4, --gpu-memory-fraction 0.45)": 54.3,
+    "verifier (Gemma 4 12B bf16, --gpu-memory-fraction 0.25)": 34.3
+  },
+  "unified_memory_used_gb": 101.5,
+  "unified_memory_total_gb": 121.6,
+  "fine_tune_peak_gpu_gib": 20.42
+}
