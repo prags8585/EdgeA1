@@ -141,7 +141,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--n", type=int, default=600, help="teacher attempts (kept examples will be fewer)")
     parser.add_argument("--workers", type=int, default=8)
-    parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--max-attempts", type=int, default=5)
     parser.add_argument("--seed", type=int, default=20260925)
     parser.add_argument("--data", type=Path, default=ROOT / "data" / "check")
     parser.add_argument("--out", type=Path, default=ROOT / "data" / "generated" / "patchwriter_train.jsonl")
