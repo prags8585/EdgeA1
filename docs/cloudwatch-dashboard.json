@@ -1,0 +1,293 @@
+{
+  "start": "-PT3H",
+  "periodOverride": "inherit",
+  "widgets": [
+    {
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 24,
+      "height": 3,
+      "properties": {
+        "markdown": "## NanoPot on AWS Bedrock: the cloud side of the comparison\nEvery time NanoPot's AI worked on an attack (decoy replies, writing patches), the **identical request** went to AWS Bedrock running the **same model, Qwen3-Next-80B**, as the HP ZGX Nano. These are **Amazon's own measurements**. AWS bills per token, so the token chart below *is* the cloud bill."
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 3,
+      "width": 6,
+      "height": 4,
+      "properties": {
+        "view": "singleValue",
+        "region": "us-west-2",
+        "title": "AI requests sent to AWS",
+        "setPeriodToTimeRange": true,
+        "stat": "Sum",
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "Invocations",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "AI calls"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 6,
+      "y": 3,
+      "width": 6,
+      "height": 4,
+      "properties": {
+        "view": "singleValue",
+        "region": "us-west-2",
+        "title": "Tokens sent to the model",
+        "setPeriodToTimeRange": true,
+        "stat": "Sum",
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "Tokens sent"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 3,
+      "width": 6,
+      "height": 4,
+      "properties": {
+        "view": "singleValue",
+        "region": "us-west-2",
+        "title": "Tokens the model wrote back",
+        "setPeriodToTimeRange": true,
+        "stat": "Sum",
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "OutputTokenCount",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "Tokens returned"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 18,
+      "y": 3,
+      "width": 6,
+      "height": 4,
+      "properties": {
+        "view": "singleValue",
+        "region": "us-west-2",
+        "title": "Average response time",
+        "setPeriodToTimeRange": true,
+        "stat": "Average",
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "InvocationLatency",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Average",
+              "label": "Avg response time (ms)"
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 7,
+      "width": 12,
+      "height": 7,
+      "properties": {
+        "view": "timeSeries",
+        "stacked": true,
+        "region": "us-west-2",
+        "period": 60,
+        "title": "Tokens per minute (what AWS bills for)",
+        "metrics": [
+          [
+            {
+              "expression": "FILL(m1, 0)",
+              "id": "e1",
+              "label": "Tokens sent (input)",
+              "color": "#2ca02c"
+            }
+          ],
+          [
+            {
+              "expression": "FILL(m2, 0)",
+              "id": "e2",
+              "label": "Tokens returned (output)",
+              "color": "#ff7f0e"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InputTokenCount",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "id": "m1",
+              "stat": "Sum",
+              "visible": false
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "OutputTokenCount",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "id": "m2",
+              "stat": "Sum",
+              "visible": false
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "label": "tokens per minute",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 7,
+      "width": 12,
+      "height": 7,
+      "properties": {
+        "view": "timeSeries",
+        "region": "us-west-2",
+        "period": 60,
+        "title": "Response time per request",
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "InvocationLatency",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Average",
+              "label": "Average response time (ms)",
+              "color": "#1f77b4"
+            }
+          ]
+        ],
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "label": "milliseconds",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 14,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "bar",
+        "region": "us-west-2",
+        "period": 60,
+        "title": "AI requests per minute",
+        "metrics": [
+          [
+            {
+              "expression": "FILL(m3, 0)",
+              "id": "e3",
+              "label": "Requests",
+              "color": "#9467bd"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "Invocations",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "id": "m3",
+              "stat": "Sum",
+              "visible": false
+            }
+          ]
+        ]
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 14,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "view": "singleValue",
+        "region": "us-west-2",
+        "title": "Errors and throttling (should be 0)",
+        "setPeriodToTimeRange": true,
+        "metrics": [
+          [
+            "AWS/Bedrock",
+            "InvocationClientErrors",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "Client errors"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InvocationServerErrors",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "Server errors"
+            }
+          ],
+          [
+            "AWS/Bedrock",
+            "InvocationThrottles",
+            "ModelId",
+            "qwen.qwen3-next-80b-a3b",
+            {
+              "stat": "Sum",
+              "label": "Throttled"
+            }
+          ]
+        ]
+      }
+    }
+  ]
+}
