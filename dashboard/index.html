@@ -99,6 +99,8 @@
 
   /* ---------- target app (the portal) ---------- */
   .portal { background: #fff; border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 760px; color: #111827; font-family: var(--sans); }
+  .portal { border: 2px solid var(--g-border); }
+  .portal-panel-head { font-family: var(--mono); }
   .portal-head { background: #f3f4f6; border-bottom: 1px solid #e5e7eb; padding: 22px 30px; display: flex; align-items: center;
                  justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .portal-title { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 18px; }
@@ -119,10 +121,16 @@
   .eye svg { width: 20px; height: 20px; }
   .primary { width: 100%; background: #2563eb; color: #fff; border: none; border-radius: 6px; padding: 14px; font: 600 17px var(--sans); }
   .primary:hover:not(:disabled) { background: #1d4ed8; }
-  .resp { max-width: 480px; width: 100%; margin: 0 auto; }
+  .resp { max-width: 100%; width: 100%; margin: 0 auto; min-width: 0; }
   .resp-label { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: #6b7280; text-transform: uppercase; margin-bottom: 6px; }
-  .resp pre { margin: 0; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px; font: 13.5px var(--mono);
-              white-space: pre-wrap; word-break: break-word; max-height: 180px; overflow: auto; color: #111827; }
+  .resp-body { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 14px; max-height: 260px; overflow: auto;
+               display: flex; flex-direction: column; gap: 10px; }
+  .resp-body pre { margin: 0; font: 13.5px var(--mono); white-space: pre-wrap; word-break: break-word; color: #111827; }
+  .resp-table { border-collapse: collapse; min-width: 100%; font: 12px/1.4 var(--mono); color: #111827; background: #fff; }
+  .resp-table th { background: #eef0f3; text-align: left; font-weight: 700; padding: 6px 7px; border: 1px solid #d9dde3; white-space: nowrap; }
+  .resp-table td { padding: 5px 7px; border: 1px solid #e5e7eb; vertical-align: top; white-space: nowrap; }
+  .resp-table tbody tr:nth-child(even) td { background: #fafbfc; }
+  .resp-table td.long { white-space: normal; word-break: break-all; min-width: 12ch; }
   .operator { background: #0b0f14; color: var(--muted); font: 12.5px var(--mono); padding: 12px 20px; letter-spacing: .04em; border-top: 1px solid #1f2937; }
   .operator b { color: var(--text); }
   .operator.honeypot b { color: var(--p); } .operator.app b { color: var(--g-bright); } .operator.leak { background: var(--red-bg); } .operator.leak b { color: var(--red); }
@@ -283,6 +291,10 @@
 
     <!-- ================= TARGET APP (what the attacker sees) ================= -->
     <section class="portal">
+      <div class="panel-head portal-panel-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        HACKER'S_POV
+      </div>
       <div class="portal-head">
         <div class="portal-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3z"/></svg>
@@ -297,7 +309,7 @@
         <form class="card" id="form" autocomplete="off"></form>
         <div class="resp" id="resp" hidden>
           <div class="resp-label">Server response</div>
-          <pre id="resp-body"></pre>
+          <div id="resp-body" class="resp-body"></div>
         </div>
       </div>
       <div class="operator" id="operator">OPERATOR VIEW &middot; send a request &mdash; the attacker never sees this strip</div>
@@ -530,7 +542,58 @@ async function send() {
 function prettyBody(body) {
   try { return JSON.stringify(JSON.parse(body), null, 2); } catch { return body; }
 }
-function showResponse(text) { $('resp').hidden = false; $('resp-body').textContent = text; }
+// Server response: plain text as-is, but text tables (MySQL-style "+---+" / "| a | b |"
+// or markdown "|---|") are drawn as real tables.
+function splitRow(line) {
+  let t = line.trim();
+  if (t.startsWith('|')) t = t.slice(1);
+  if (t.endsWith('|')) t = t.slice(0, -1);
+  return t.split('|').map((c) => c.trim());
+}
+function responseBlocks(text) {
+  const blocks = [];
+  let rows = null, prose = [];
+  const flushProse = () => { if (prose.join('').trim()) blocks.push({ kind: 'text', text: prose.join('\n').trim() }); prose = []; };
+  const flushTable = () => { if (rows && rows.length) blocks.push({ kind: 'table', rows }); rows = null; };
+  for (const line of String(text).split('\n')) {
+    const t = line.trim();
+    const isBorder = /^\+[-+=\s]*\+$/.test(t) || (/^\|?[\s:|-]+\|?$/.test(t) && t.includes('--'));
+    const isRow = t.length > 2 && t.startsWith('|') && t.endsWith('|');
+    if (isBorder || isRow) {
+      if (!rows) { flushProse(); rows = []; }
+      if (isRow) rows.push(splitRow(t));
+    } else {
+      flushTable();
+      prose.push(line);
+    }
+  }
+  flushTable(); flushProse();
+  return blocks;
+}
+function showResponse(text) {
+  $('resp').hidden = false;
+  const box = $('resp-body');
+  const blocks = responseBlocks(text);
+  box.replaceChildren(...blocks.map((b) => {
+    if (b.kind === 'text' || b.rows.length < 2) return el('pre', null, b.kind === 'text' ? b.text : b.rows.map((r) => r.join(' | ')).join('\n'));
+    const width = Math.max(...b.rows.map((r) => r.length));
+    const table = el('table', 'resp-table');
+    const head = el('tr');
+    for (let i = 0; i < width; i++) head.append(el('th', null, b.rows[0][i] ?? ''));
+    const thead = el('thead'); thead.append(head);
+    const tbody = el('tbody');
+    for (const r of b.rows.slice(1)) {
+      const tr = el('tr');
+      for (let i = 0; i < width; i++) {
+        const v = r[i] ?? '';
+        tr.append(el('td', /^\S{16,}$/.test(v) ? 'long' : null, v));  // wrap hashes/tokens only
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    return table;
+  }));
+}
 
 // ---------- defense rules panel ----------
 const expanded = new Set();
