@@ -24,12 +24,18 @@
            flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid #14532d; margin-bottom: 32px; }
   h1 { margin: 0; font-size: clamp(28px, 3vw, 42px); color: var(--g-bright); letter-spacing: .01em; }
   h1 .prompt { margin-right: .35em; }
-  /* Title: steady purple with a constant, slow purple/white glitch. */
-  .title { position: relative; display: inline-block; color: #c084fc; text-shadow: 0 0 12px rgba(168, 85, 247, .55);
-           animation: glitch-shake 1.1s steps(2) infinite; }
-  .title::before, .title::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; }
-  .title::before { color: #a855f7; animation: glitch-a 2.4s steps(4) infinite; }
-  .title::after { color: #ffffff; animation: glitch-b 1.9s steps(4) infinite; }
+  /* Title sequence: green flashing -> purple/white glitch -> red flashing, then a glitch every 3 s (click to replay). */
+  .title { position: relative; display: inline-block; cursor: pointer; user-select: none; }
+  .title.green { color: var(--g-bright); --glow: 74, 222, 128; animation: name-flash 1s ease-in-out infinite; }
+  .title.red { color: #ff3b3b; --glow: 255, 59, 59; animation: name-flash 1.2s ease-in-out infinite; }
+  @keyframes name-flash {
+    0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(var(--glow), .75), 0 0 22px rgba(var(--glow), .4); }
+    50% { opacity: .35; text-shadow: none; }
+  }
+  .title.glitch { color: #c084fc; text-shadow: 0 0 12px rgba(168, 85, 247, .7); animation: glitch-shake .12s steps(2) infinite; }
+  .title.glitch::before, .title.glitch::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; }
+  .title.glitch::before { color: #a855f7; animation: glitch-a .36s steps(3) infinite; }
+  .title.glitch::after { color: #ffffff; animation: glitch-b .3s steps(3) infinite; }
   @keyframes glitch-shake { 0% { transform: translate(0, 0); } 50% { transform: translate(-2px, 1px); } 100% { transform: translate(2px, -1px); } }
   @keyframes glitch-a {
     0% { clip-path: inset(8% 0 62% 0); transform: translate(-5px, 0); }
@@ -43,7 +49,7 @@
     66% { clip-path: inset(40% 0 30% 0); transform: translate(3px, 0); }
     100% { clip-path: inset(2% 0 78% 0); transform: translate(-5px, 0); }
   }
-  @media (prefers-reduced-motion: reduce) { .title, .title::before, .title::after { animation: none; } .title::before, .title::after { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after { animation: none; } }
   .subtitle { margin-top: 10px; color: var(--g-mid); letter-spacing: .16em; font-size: 15px; text-transform: uppercase; }
   .subtitle .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
   .subtitle .dot.live { background: var(--g-bright); box-shadow: 0 0 8px var(--g-bright); }
@@ -227,7 +233,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1><span class="title" id="title" data-text="&gt;_ NANOPOT: THE SHADOW ALCHEMIST">&gt;_ NANOPOT: THE SHADOW ALCHEMIST</span></h1>
+      <h1><span class="title green" id="title" data-text="&gt;_ NANOPOT: THE SHADOW ALCHEMIST" title="Click to replay">&gt;_ NANOPOT: THE SHADOW ALCHEMIST</span></h1>
       <div class="subtitle"><span id="dot" class="dot"></span><span id="conn">CONNECTING</span> // NODE: HP ZGX NANO (GB10)</div>
     </div>
     <div class="badges">
@@ -1008,6 +1014,35 @@ async function refreshInfra() {
 }
 refreshInfra(); setInterval(refreshInfra, 10000);
 
+// Title sequence: green flashing, a purple glitch, then red flashing with a purple
+// glitch every 3 seconds. Click to replay from green.
+const titleTimers = [];
+const GLITCH_MS = 900, RED_MS = 3000;
+const TITLE = 'NANOPOT: THE SHADOW ALCHEMIST';
+const MARK_PROMPT = '>_';
+function setTitleMark(mark) {
+  const t = $('title');
+  t.textContent = `${mark} ${TITLE}`;
+  t.dataset.text = t.textContent;  // the glitch slices copy this
+}
+function glitchThenRed() {
+  const t = $('title');
+  t.className = 'title glitch';
+  titleTimers.push(setTimeout(() => {
+    t.className = 'title red';
+    titleTimers.push(setTimeout(glitchThenRed, RED_MS));
+  }, GLITCH_MS));
+}
+function playTitle() {
+  const t = $('title');
+  titleTimers.splice(0).forEach(clearTimeout);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setTitleMark(MARK_PROMPT); t.className = 'title red'; return; }
+  setTitleMark(MARK_PROMPT);
+  t.className = 'title green';
+  titleTimers.push(setTimeout(glitchThenRed, 3000));
+}
+$('title').addEventListener('click', playTitle);
+playTitle();
 </script>
 </body>
 </html>
