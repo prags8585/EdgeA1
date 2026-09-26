@@ -24,12 +24,32 @@
            flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid #14532d; margin-bottom: 32px; }
   h1 { margin: 0; font-size: clamp(28px, 3vw, 42px); color: var(--g-bright); letter-spacing: .01em; }
   h1 .prompt { margin-right: .35em; }
-  h1.flash { color: #ff3b3b; --glow: 255, 59, 59; animation: name-flash 1.2s ease-in-out infinite; }
+  /* Title sequence: green flashing -> glitch -> red flashing (click the title to replay). */
+  .title { position: relative; display: inline-block; cursor: pointer; user-select: none; }
+  .title.green { color: var(--g-bright); --glow: 74, 222, 128; animation: name-flash 1s ease-in-out infinite; }
+  .title.red { color: #ff3b3b; --glow: 255, 59, 59; animation: name-flash 1.2s ease-in-out infinite; }
   @keyframes name-flash {
     0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(var(--glow), .75), 0 0 22px rgba(var(--glow), .4); }
     50% { opacity: .35; text-shadow: none; }
   }
-  @media (prefers-reduced-motion: reduce) { h1.flash { animation: none; } }
+  .title.glitch { color: #f5f5f5; animation: glitch-shake .12s steps(2) infinite; }
+  .title.glitch::before, .title.glitch::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; }
+  .title.glitch::before { color: #ff3b3b; animation: glitch-a .36s steps(3) infinite; }
+  .title.glitch::after { color: #22d3ee; animation: glitch-b .3s steps(3) infinite; }
+  @keyframes glitch-shake { 0% { transform: translate(0, 0); } 50% { transform: translate(-2px, 1px); } 100% { transform: translate(2px, -1px); } }
+  @keyframes glitch-a {
+    0% { clip-path: inset(8% 0 62% 0); transform: translate(-5px, 0); }
+    33% { clip-path: inset(48% 0 22% 0); transform: translate(5px, 0); }
+    66% { clip-path: inset(28% 0 44% 0); transform: translate(-3px, 0); }
+    100% { clip-path: inset(72% 0 4% 0); transform: translate(4px, 0); }
+  }
+  @keyframes glitch-b {
+    0% { clip-path: inset(60% 0 12% 0); transform: translate(5px, 0); }
+    33% { clip-path: inset(14% 0 58% 0); transform: translate(-4px, 0); }
+    66% { clip-path: inset(40% 0 30% 0); transform: translate(3px, 0); }
+    100% { clip-path: inset(2% 0 78% 0); transform: translate(-5px, 0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after { animation: none; } }
   .subtitle { margin-top: 10px; color: var(--g-mid); letter-spacing: .16em; font-size: 15px; text-transform: uppercase; }
   .subtitle .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
   .subtitle .dot.live { background: var(--g-bright); box-shadow: 0 0 8px var(--g-bright); }
@@ -213,7 +233,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1 class="flash"><span class="prompt">&gt;_</span>NANOPOT: THE SHADOW ALCHEMIST</h1>
+      <h1><span class="title green" id="title" data-text="&gt;_ NANOPOT: THE SHADOW ALCHEMIST" title="Click to replay">&gt;_ NANOPOT: THE SHADOW ALCHEMIST</span></h1>
       <div class="subtitle"><span id="dot" class="dot"></span><span id="conn">CONNECTING</span> // NODE: HP ZGX NANO (GB10)</div>
     </div>
     <div class="badges">
@@ -993,6 +1013,19 @@ async function refreshInfra() {
   } catch {}
 }
 refreshInfra(); setInterval(refreshInfra, 10000);
+
+// Title sequence: green flashing, then a glitch, then red flashing. Click to replay.
+const titleTimers = [];
+function playTitle() {
+  const t = $('title');
+  titleTimers.splice(0).forEach(clearTimeout);
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { t.className = 'title red'; return; }
+  t.className = 'title green';
+  titleTimers.push(setTimeout(() => { t.className = 'title glitch'; }, 3000));
+  titleTimers.push(setTimeout(() => { t.className = 'title red'; }, 4000));
+}
+$('title').addEventListener('click', playTitle);
+playTitle();
 </script>
 </body>
 </html>
