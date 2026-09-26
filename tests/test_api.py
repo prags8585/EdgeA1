@@ -13,7 +13,7 @@ def test_dashboard_serves_html(tmp_path, monkeypatch):
     client = _client(tmp_path, monkeypatch)
     resp = client.get("/")
     assert resp.status_code == 200
-    assert "Chameleon" in resp.text
+    assert "NanoPot" in resp.text
 
 
 def test_summary_on_empty_db(tmp_path, monkeypatch):

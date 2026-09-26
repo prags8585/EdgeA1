@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from .model import CheckModel
 
-app = FastAPI(title="Chameleon Edge check model")
+app = FastAPI(title="NanoPot check model")
 
 
 @lru_cache(maxsize=1)

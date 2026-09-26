@@ -1,7 +1,7 @@
 {
   "name": "chameleon-edge-ai-gateway",
   "version": "1.0.0",
-  "description": "AI Gateway (AI SDK) examples for Chameleon Edge: calls Jev and other models through Vercel AI Gateway",
+  "description": "AI Gateway (AI SDK) examples for NanoPot: calls Jev and other models through Vercel AI Gateway",
   "scripts": {
     "example": "tsx --env-file-if-exists=.env.local index.ts"
   },

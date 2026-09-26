@@ -10,16 +10,15 @@ tags:
   - distillation
 ---
 
-# Chameleon Edge patch writer (Qwen2.5-7B LoRA)
+# NanoPot patch writer (Qwen2.5-7B LoRA)
 
 A LoRA adapter that teaches Qwen2.5-7B-Instruct to write **input-validation rules** (a regex plus
 how to apply it) that block a captured web or prompt attack without blocking normal traffic. It's
-the small, fast patch writer for [Chameleon Edge](https://github.com/prags8585/EdgeA1), an AI
+the small, fast patch writer for [NanoPot: The Shadow Alchemist](https://github.com/prags8585/EdgeA1), an AI
 security layer built for the HP Edge AI SJSUHack (Secure AI track) and trained and served
 entirely on an HP ZGX Nano (NVIDIA GB10).
 
-**Not a standalone security product.** Every rule it writes is meant to go through Chameleon
-Edge's deterministic tests (replay, URL-encoding, normal-traffic, ReDoS) and an independent
+**Not a standalone security product.** Every rule it writes is meant to go through NanoPot's deterministic tests (replay, URL-encoding, normal-traffic, ReDoS) and an independent
 verifier model before it's ever applied. Don't deploy its output unchecked.
 
 ## How it was trained
@@ -56,11 +55,11 @@ on path traversal it goes from 0% to 7.5% full pass and 37% to 58% recall (teach
 
 - **Repetition loops.** About a third of greedy outputs get stuck repeating a regex fragment until
   the token cap and aren't valid JSON (a known failure mode for small fine-tuned models; a
-  repetition penalty didn't help in our tests). Chameleon Edge's pipeline retries on invalid
+  repetition penalty didn't help in our tests). NanoPot's pipeline retries on invalid
   output, so in practice this costs attempts, not safety.
 - **Regex rules generalize poorly to natural-language attacks.** In the training data, teacher
   rules reached a median 80% recall on unseen SQL injection but only 6% on unseen prompt
-  injection. Chameleon Edge relies on a trained classifier and a honeypot for those, not regex.
+  injection. NanoPot relies on a trained classifier and a honeypot for those, not regex.
 - Small, public/synthetic data from one hackathon day. None of these numbers describe
   enterprise-scale performance.
 

@@ -1,6 +1,12 @@
-# Chameleon Edge
+# NanoPot: The Shadow Alchemist
 
-An AI security layer that reroutes malicious requests to a honeypot AI on the HP ZGX Nano, then turns each attack into a tested, independently verified security patch — instead of just blocking it and teaching the attacker nothing.
+**An Edge AI honeypot that converts attacks into tested security patches.**
+
+NanoPot runs on one HP ZGX Nano. Every request is checked by Jev and a model trained on the Nano; attackers are redirected to a decoy app whose answers Qwen writes live, and each attack is turned into a tested, independently verified patch that blocks the next attempt — instead of just blocking it and teaching the attacker nothing.
+
+_Formerly codenamed Chameleon Edge: the Python package is still `chameleon/`._
+
+**Plain-language explainer with all diagrams:** [docs/NanoPot-Explained.pdf](docs/NanoPot-Explained.pdf)
 
 **30-second demo:** _TODO — record before submission (see NEXT STEPS in HANDOFF.md)._
 
@@ -40,7 +46,7 @@ The demo covers both a regular web API (SQLi, XSS, command injection, path trave
 - **Privacy / data residency:** attack logs, payloads, and patches never have to leave the Nano.
 - **Works offline:** the Nano-side loop (honeypot, patching, verification) keeps running even if the cloud link drops; see "offline mode" below.
 
-HP's own research shows attackers increasingly use AI to generate new attack variations faster than defenses can adapt (see References). Chameleon Edge answers with AI on the defense side: trap the attacker, learn from the attempt, ship a verified patch automatically. (We build on this research; HP hasn't published on this exact problem.)
+HP's own research shows attackers increasingly use AI to generate new attack variations faster than defenses can adapt (see References). NanoPot Edge answers with AI on the defense side: trap the attacker, learn from the attempt, ship a verified patch automatically. (We build on this research; HP hasn't published on this exact problem.)
 
 ## Architecture
 

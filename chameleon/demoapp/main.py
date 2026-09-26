@@ -15,7 +15,7 @@ from ..apps.login_app import CANARY_ADMIN_PASSWORD  # noqa: F401
 
 APPS = {"login": login_app, "search": search_app, "files": files_app, "chat": chat_app}
 
-app = FastAPI(title="Chameleon Edge demo app")
+app = FastAPI(title="NanoPot demo app")
 for module in APPS.values():
     app.include_router(module.router)
 

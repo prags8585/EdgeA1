@@ -42,7 +42,7 @@ def main() -> None:
         for name in ("finetune_train.json", "finetune_eval.json", "finetune_data_meta.json"):
             shutil.copy(ROOT / "results" / name, results / name)
         api.upload_folder(folder_path=str(staging), repo_id=args.repo, repo_type="model",
-                          commit_message="Upload Chameleon Edge patch-writer LoRA adapter")
+                          commit_message="Upload NanoPot patch-writer LoRA adapter")
 
     print(json.dumps({"repo": f"https://huggingface.co/{args.repo}",
                       "files": sorted(f.rfilename for f in api.model_info(args.repo).siblings)}, indent=2))

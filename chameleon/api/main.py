@@ -1,4 +1,4 @@
-"""Backend API + dashboard for Chameleon Edge.
+"""Backend API + dashboard for NanoPot: The Shadow Alchemist.
 
 REST endpoints read straight from SQLite -- no caching, this is a 1-day
 build and the dataset is small. The WebSocket pushes the summary once a
@@ -25,7 +25,7 @@ from ..patch import store as patch_store
 from ..redteam import scenario as redteam_scenario
 from ..targets import SESSION_HEADER, TARGETS, forward
 
-app = FastAPI(title="Chameleon Edge dashboard")
+app = FastAPI(title="NanoPot: The Shadow Alchemist · dashboard")
 
 DASHBOARD_HTML = config.ROOT / "dashboard" / "index.html"
 CHECK_DATA_DIR = config.ROOT / "data" / "check"
