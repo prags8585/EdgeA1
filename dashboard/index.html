@@ -1091,10 +1091,12 @@ function strikeLightning() {
   }, fadeStart);
 }
 
+const LIGHTNING_EVERY = 4;  // lightning on one glitch in every four
+let glitchCount = 0;
 function glitchThenRed() {
   const t = $('title');
   t.className = 'title glitch';
-  strikeLightning();
+  if (glitchCount++ % LIGHTNING_EVERY === 0) strikeLightning();  // lightning on the 1st, 5th, 9th… glitch
   titleTimers.push(setTimeout(() => {
     t.className = 'title red';
     titleTimers.push(setTimeout(glitchThenRed, RED_MS));
@@ -1103,6 +1105,7 @@ function glitchThenRed() {
 function playTitle() {
   const t = $('title');
   titleTimers.splice(0).forEach(clearTimeout);
+  glitchCount = 0;
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setTitleMark(MARK_PROMPT); t.className = 'title red'; return; }
   setTitleMark(MARK_PROMPT);
   t.className = 'title green';
