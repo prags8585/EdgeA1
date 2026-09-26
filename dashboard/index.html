@@ -1048,17 +1048,17 @@ function drawStrands(ctx, w, h, alpha) {
   const count = 2 + Math.floor(Math.random() * 2);
   for (let i = 0; i < count; i++) {
     const x1 = w * (0.08 + Math.random() * 0.84);
-    const x2 = x1 + (Math.random() - 0.5) * w * 0.35;
-    const main = boltPath(x1, 0, x2, h * (0.75 + Math.random() * 0.25), w * 0.12);
-    bolts.push({ pts: main, width: 2.2 });
+    const x2 = x1 + (Math.random() - 0.5) * w * 0.12;
+    const main = boltPath(x1, 0, x2, h * (0.35 + Math.random() * 0.25), w * 0.05);
+    bolts.push({ pts: main, width: 1.4 });
     for (let b = 0; b < 2; b++) {                       // a couple of branches off each bolt
       const [bx, by] = main[Math.floor(main.length * (0.25 + Math.random() * 0.5))];
       const dir = Math.random() < 0.5 ? -1 : 1;
-      bolts.push({ pts: boltPath(bx, by, bx + dir * (40 + Math.random() * 110), by + 25 + Math.random() * 45, 40), width: 1.1 });
+      bolts.push({ pts: boltPath(bx, by, bx + dir * (15 + Math.random() * 40), by + 10 + Math.random() * 20, 18), width: 0.8 });
     }
   }
   ctx.globalAlpha = alpha;
-  for (const pass of [{ color: 'rgba(168, 85, 247, .55)', extra: 5, blur: 22 }, { color: '#f5f3ff', extra: 0, blur: 10 }]) {
+  for (const pass of [{ color: 'rgba(168, 85, 247, .5)', extra: 3, blur: 12 }, { color: '#f5f3ff', extra: 0, blur: 6 }]) {
     ctx.strokeStyle = pass.color; ctx.shadowColor = '#c084fc'; ctx.shadowBlur = pass.blur;
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     for (const bolt of bolts) {
