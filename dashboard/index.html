@@ -37,13 +37,10 @@
     0%, 30%, 55%, 100% { text-shadow: 0 0 12px rgba(168, 85, 247, .7); }
     10%, 40% { text-shadow: 0 0 6px #fff, 0 0 24px #e9d5ff, 0 0 48px #a855f7, 0 0 80px #7c3aed; }
   }
-  /* Lightning: two quick flashes behind the header during each glitch. */
+  /* Lightning strands: jagged bolts drawn on a canvas behind the header during each glitch. */
   header { position: relative; }
-  #lightning { position: absolute; inset: -12px -16px; border-radius: 10px; pointer-events: none; z-index: 0; opacity: 0;
-               background: radial-gradient(ellipse at 25% 30%, rgba(243, 232, 255, .85), rgba(216, 180, 254, .35) 45%, rgba(88, 28, 135, 0) 75%); }
+  #lightning { position: absolute; left: -16px; top: -12px; width: calc(100% + 32px); height: calc(100% + 24px); pointer-events: none; z-index: 0; }
   header > :not(#lightning) { position: relative; z-index: 1; }
-  #lightning.strike { animation: strike .9s ease-out; }
-  @keyframes strike { 0% { opacity: 0; } 6% { opacity: .75; } 14% { opacity: .05; } 22% { opacity: .55; } 34% { opacity: 0; } 100% { opacity: 0; } }
   .title.glitch::before, .title.glitch::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; }
   .title.glitch::before { color: #a855f7; animation: glitch-a .36s steps(3) infinite; }
   .title.glitch::after { color: #ffffff; animation: glitch-b .3s steps(3) infinite; }
@@ -60,7 +57,7 @@
     66% { clip-path: inset(40% 0 30% 0); transform: translate(3px, 0); }
     100% { clip-path: inset(2% 0 78% 0); transform: translate(-5px, 0); }
   }
-  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after, #lightning.strike { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after { animation: none; } }
   .subtitle { margin-top: 10px; color: var(--g-mid); letter-spacing: .16em; font-size: 15px; text-transform: uppercase; }
   .subtitle .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
   .subtitle .dot.live { background: var(--g-bright); box-shadow: 0 0 8px var(--g-bright); }
@@ -243,7 +240,7 @@
 <body>
 <div class="wrap">
   <header>
-    <div id="lightning" aria-hidden="true"></div>
+    <canvas id="lightning" aria-hidden="true"></canvas>
     <div>
       <h1><span class="title green" id="title" data-text="&gt;_ NANOPOT: THE SHADOW ALCHEMIST" title="Click to replay">&gt;_ NANOPOT: THE SHADOW ALCHEMIST</span></h1>
       <div class="subtitle"><span id="dot" class="dot"></span><span id="conn">CONNECTING</span> // NODE: HP ZGX NANO (GB10)</div>
@@ -1037,11 +1034,66 @@ function setTitleMark(mark) {
   t.textContent = `${mark} ${TITLE}`;
   t.dataset.text = t.textContent;  // the glitch slices copy this
 }
+// ---------- lightning strands ----------
+// Random jagged bolts (midpoint displacement) with a few branches, drawn twice
+// in quick succession like a real strike, then faded out.
+function boltPath(x1, y1, x2, y2, spread) {
+  if (spread < 2.5) return [[x1, y1], [x2, y2]];
+  const mx = (x1 + x2) / 2 + (Math.random() - 0.5) * spread;
+  const my = (y1 + y2) / 2 + (Math.random() - 0.5) * spread * 0.35;
+  return [...boltPath(x1, y1, mx, my, spread / 2), ...boltPath(mx, my, x2, y2, spread / 2).slice(1)];
+}
+function drawStrands(ctx, w, h, alpha) {
+  const bolts = [];
+  const count = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < count; i++) {
+    const x1 = w * (0.08 + Math.random() * 0.84);
+    const x2 = x1 + (Math.random() - 0.5) * w * 0.35;
+    const main = boltPath(x1, 0, x2, h * (0.75 + Math.random() * 0.25), w * 0.12);
+    bolts.push({ pts: main, width: 2.2 });
+    for (let b = 0; b < 2; b++) {                       // a couple of branches off each bolt
+      const [bx, by] = main[Math.floor(main.length * (0.25 + Math.random() * 0.5))];
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      bolts.push({ pts: boltPath(bx, by, bx + dir * (40 + Math.random() * 110), by + 25 + Math.random() * 45, 40), width: 1.1 });
+    }
+  }
+  ctx.globalAlpha = alpha;
+  for (const pass of [{ color: 'rgba(168, 85, 247, .55)', extra: 5, blur: 22 }, { color: '#f5f3ff', extra: 0, blur: 10 }]) {
+    ctx.strokeStyle = pass.color; ctx.shadowColor = '#c084fc'; ctx.shadowBlur = pass.blur;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const bolt of bolts) {
+      ctx.lineWidth = bolt.width + pass.extra;
+      ctx.beginPath(); bolt.pts.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    }
+  }
+}
+function strikeLightning() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const c = $('lightning');
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr;
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const clear = () => ctx.clearRect(0, 0, w, h);
+  clear(); drawStrands(ctx, w, h, 1);                                  // first crack
+  setTimeout(clear, 90);
+  setTimeout(() => { clear(); drawStrands(ctx, w, h, 1); }, 160);      // second crack, new strands
+  const fadeStart = 260, fadeMs = 280;
+  setTimeout(() => {
+    const t0 = performance.now();
+    (function fade(now) {
+      const k = Math.min(1, (now - t0) / fadeMs);
+      c.style.opacity = String(1 - k);
+      if (k < 1) requestAnimationFrame(fade); else { clear(); c.style.opacity = '1'; }
+    })(t0);
+  }, fadeStart);
+}
+
 function glitchThenRed() {
   const t = $('title');
   t.className = 'title glitch';
-  const bolt = $('lightning');
-  bolt.classList.remove('strike'); void bolt.offsetWidth; bolt.classList.add('strike');  // restart the flash
+  strikeLightning();
   titleTimers.push(setTimeout(() => {
     t.className = 'title red';
     titleTimers.push(setTimeout(glitchThenRed, RED_MS));
