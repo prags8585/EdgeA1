@@ -24,10 +24,12 @@
            flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid #14532d; margin-bottom: 32px; }
   h1 { margin: 0; font-size: clamp(28px, 3vw, 42px); color: var(--g-bright); letter-spacing: .01em; }
   h1 .prompt { margin-right: .35em; }
-  /* Title sequence: green flashing -> purple glitch -> red flashing, then a purple glitch every 3 s (click to replay). */
+  /* Title sequence: green flashing -> purple/white glitch -> red flashing with the alchemy mark,
+     then a glitch every 3 s (click to replay). */
   .title { position: relative; display: inline-block; cursor: pointer; user-select: none; }
   .title.green { color: var(--g-bright); --glow: 74, 222, 128; animation: name-flash 1s ease-in-out infinite; }
   .title.red { color: #ff3b3b; --glow: 255, 59, 59; animation: name-flash 1.2s ease-in-out infinite; }
+  .title.red::first-letter { font-size: 1.45em; line-height: 0; }
   @keyframes name-flash {
     0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(var(--glow), .75), 0 0 22px rgba(var(--glow), .4); }
     50% { opacity: .35; text-shadow: none; }
@@ -35,7 +37,7 @@
   .title.glitch { color: #c084fc; text-shadow: 0 0 12px rgba(168, 85, 247, .7); animation: glitch-shake .12s steps(2) infinite; }
   .title.glitch::before, .title.glitch::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; }
   .title.glitch::before { color: #a855f7; animation: glitch-a .36s steps(3) infinite; }
-  .title.glitch::after { color: #e879f9; animation: glitch-b .3s steps(3) infinite; }
+  .title.glitch::after { color: #ffffff; animation: glitch-b .3s steps(3) infinite; }
   @keyframes glitch-shake { 0% { transform: translate(0, 0); } 50% { transform: translate(-2px, 1px); } 100% { transform: translate(2px, -1px); } }
   @keyframes glitch-a {
     0% { clip-path: inset(8% 0 62% 0); transform: translate(-5px, 0); }
@@ -1018,10 +1020,18 @@ refreshInfra(); setInterval(refreshInfra, 10000);
 // glitch every 3 seconds. Click to replay from green.
 const titleTimers = [];
 const GLITCH_MS = 900, RED_MS = 3000;
+const TITLE = 'NANOPOT: THE SHADOW ALCHEMIST';
+const MARK_PROMPT = '>_', MARK_ALCHEMY = '\u2697\uFE0E';  // alembic, drawn as text rather than emoji
+function setTitleMark(mark) {
+  const t = $('title');
+  t.textContent = `${mark} ${TITLE}`;
+  t.dataset.text = t.textContent;  // the glitch slices copy this
+}
 function glitchThenRed() {
   const t = $('title');
   t.className = 'title glitch';
   titleTimers.push(setTimeout(() => {
+    setTitleMark(MARK_ALCHEMY);  // the prompt is transmuted into the alchemist's mark
     t.className = 'title red';
     titleTimers.push(setTimeout(glitchThenRed, RED_MS));
   }, GLITCH_MS));
@@ -1029,7 +1039,8 @@ function glitchThenRed() {
 function playTitle() {
   const t = $('title');
   titleTimers.splice(0).forEach(clearTimeout);
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { t.className = 'title red'; return; }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setTitleMark(MARK_ALCHEMY); t.className = 'title red'; return; }
+  setTitleMark(MARK_PROMPT);
   t.className = 'title green';
   titleTimers.push(setTimeout(glitchThenRed, 3000));
 }
