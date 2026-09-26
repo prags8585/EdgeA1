@@ -327,6 +327,7 @@
         <div class="actions">
           <button class="launch" id="launch">&#9889; LAUNCH_ATTACK_WAVE</button>
           <button class="reset" id="reset">RESET</button>
+          <button class="reset" id="redis-clear" title="Delete all patches stored in Redis">REDIS CLEAR</button>
         </div>
       </div>
     </section>
@@ -1006,6 +1007,23 @@ $('send').addEventListener('click', send);
 $('form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
 $('launch').addEventListener('click', launchWave);
 $('reset').addEventListener('click', reset);
+let redisArmed = null;
+async function clearRedis() {
+  const btn = $('redis-clear');
+  if (!redisArmed) {
+    btn.classList.add('armed'); btn.textContent = 'CONFIRM?';
+    redisArmed = setTimeout(() => { btn.classList.remove('armed'); btn.textContent = 'REDIS CLEAR'; redisArmed = null; }, 3000);
+    return;
+  }
+  clearTimeout(redisArmed); redisArmed = null; btn.classList.remove('armed'); btn.textContent = 'REDIS CLEAR';
+  const resp = await fetch('/api/redis/clear', { method: 'POST' });
+  const r = await resp.json();
+  if (!resp.ok) { log(`redis clear refused: ${r.detail}`, 'warn'); return; }
+  expanded.clear();
+  log(`REDIS CLEAR: ${r.keys_deleted} keys deleted, ${r.patches_retired} live patches retired. Attacks will be learned again from scratch.`, 'warn');
+  refreshInfra(); refreshRules();
+}
+$('redis-clear').addEventListener('click', clearRedis);
 
 bootLines();
 setTarget('login');

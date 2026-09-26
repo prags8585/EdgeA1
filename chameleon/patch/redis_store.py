@@ -154,6 +154,22 @@ def deactivate_all(r) -> int:
 
 
 @_safe
+def clear_all(r) -> int:
+    """Delete every NanoPot key (all patches, their code and test trails).
+    Only keys under our prefix are touched, never the rest of the Redis server."""
+    deleted = 0
+    batch = []
+    for key in r.scan_iter(match=f"{PREFIX}*", count=500):
+        batch.append(key)
+        if len(batch) >= 500:
+            deleted += r.delete(*batch)
+            batch = []
+    if batch:
+        deleted += r.delete(*batch)
+    return deleted
+
+
+@_safe
 def health(r) -> dict:
     return {"ok": bool(r.ping()), "patches": r.zcard(f"{PREFIX}patches:all"),
             "active": r.zcard(f"{PREFIX}patches:active")}

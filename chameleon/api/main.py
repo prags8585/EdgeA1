@@ -358,6 +358,27 @@ def reset_demo():
         conn.close()
 
 
+@app.post("/api/redis/clear")
+def clear_redis():
+    """Delete NanoPot's data in Redis and stop enforcing every patch, so the
+    front door, Redis and the app files stay consistent. Request logs and
+    sessions are kept (that's what RESET is for)."""
+    with _wave_lock:
+        if _wave["state"] == "running":
+            raise HTTPException(status_code=409, detail="wait for the attack wave to finish first")
+    if redis_store.health() is None:
+        raise HTTPException(status_code=503, detail="Redis is not reachable")
+    conn = _conn()
+    try:
+        retired = conn.execute("UPDATE patches SET status = 'rolled_back' WHERE status = 'approved'").rowcount
+        conn.commit()
+        deleted = redis_store.clear_all() or 0
+        integrate.sync_active(conn)  # take the code patches out of the apps
+        return {"ok": True, "keys_deleted": deleted, "patches_retired": retired}
+    finally:
+        conn.close()
+
+
 @app.websocket("/ws")
 async def ws_summary(websocket: WebSocket):
     await websocket.accept()

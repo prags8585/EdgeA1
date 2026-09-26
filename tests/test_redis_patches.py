@@ -108,3 +108,11 @@ def test_literal_round_trips_exactly():
     import ast
     for text in [r"union\s+select", r"a'b\"c", "ends with backslash\\", "'''\"\"\"", "new\nline", r"\.\./"]:
         assert ast.literal_eval(integrate.literal(text)) == text
+
+
+def test_clear_all_deletes_only_nanopot_keys(conn, r):
+    store.set_status(conn, store.propose(conn, RULE, "writer"), "approved")
+    r.set("someone-elses-key", "keep me")
+    assert redis_store.clear_all() >= 3
+    assert r.keys("chameleon:*") == [] and r.get("someone-elses-key") == "keep me"
+    assert store.active_rules(conn) == []
