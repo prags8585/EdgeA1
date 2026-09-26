@@ -26,6 +26,7 @@
   h1 .prompt { margin-right: .35em; }
   h1.flash .name-flash { color: var(--g-bright); --glow: 74, 222, 128; animation: name-flash 1.2s ease-in-out infinite; }
   h1.flash .name-static { color: var(--g-bright); }
+  h1.flash .name-pot { color: #ff3b3b; text-shadow: 0 0 10px rgba(255, 59, 59, .75), 0 0 22px rgba(255, 59, 59, .4); }
   @keyframes name-flash {
     0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(var(--glow), .75), 0 0 22px rgba(var(--glow), .4); }
     50% { opacity: .35; text-shadow: none; }
@@ -214,7 +215,7 @@
 <div class="wrap">
   <header>
     <div>
-      <h1 class="flash"><span class="prompt">&gt;_</span><span class="name-flash">NANOPOT</span><span class="name-static">: THE SHADOW ALCHEMIST</span></h1>
+      <h1 class="flash"><span class="prompt">&gt;_</span><span class="name-flash">NANO<span class="name-pot">POT</span></span><span class="name-static">: THE SHADOW ALCHEMIST</span></h1>
       <div class="subtitle"><span id="dot" class="dot"></span><span id="conn">CONNECTING</span> // NODE: HP ZGX NANO (GB10)</div>
     </div>
     <div class="badges">
