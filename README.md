@@ -119,10 +119,10 @@ The **check model** (`chameleon/check/`) is a TF-IDF + logistic-regression class
 
 | Test set | Requests | Precision | Recall | False-positive rate |
 |---|---|---|---|---|
-| All test data | 10,632 | 99.85% | 98.96% | 0.09% |
-| HttpParams (web attacks) | 10,258 | 99.97% | 99.5% | 0.02% |
-| jackhhao (jailbreaks) | 258 | 96.4% | 97.8% | 4.1% |
-| deepset (prompt injection) | 116 | 100% | 66.7% | 0% |
+| All test data | 10,632 | 92.4% | 90.1% | 3.6% |
+| HttpParams (web attacks) | 10,258 | 93.2% | 91.5% | 0.02% |
+| jackhhao (jailbreaks) | 258 | 91% | 88.6% | 4.1% |
+| deepset (prompt injection) | 116 | 92.6% | 79.4% | 0% |
 
 ### Fine-tuned patch writer (`training/`)
 
