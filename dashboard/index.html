@@ -139,41 +139,6 @@
 
   /* ---------- defense rules ---------- */
   .engine { border: 1px solid var(--p-border); border-radius: 8px; background: var(--p-bg); padding: 16px 18px; }
-  /* Fight arena: the NanoPot robot vs a hacker while a patch is learned; K.O. when it's approved. */
-  .arena { position: relative; height: 92px; margin-top: 12px; border-top: 1px dashed var(--p-border); overflow: hidden;
-           display: flex; align-items: flex-end; justify-content: center; gap: 64px; padding-bottom: 4px; }
-  .arena .fighter { height: 70px; width: auto; transform-origin: 50% 100%; }
-  .arena .villain { height: 64px; }
-  .arena .clash { position: absolute; left: 50%; bottom: 30px; width: 26px; height: 26px; margin-left: -13px; opacity: 0; pointer-events: none;
-                  background: radial-gradient(circle, #fff 0 18%, #fde68a 30%, rgba(168, 85, 247, .7) 55%, transparent 70%); border-radius: 50%; }
-  .arena .ko-label { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font: 800 13px var(--mono); letter-spacing: .14em;
-                     color: var(--g-bright); text-shadow: 0 0 8px rgba(74, 222, 128, .7); opacity: 0; }
-  .arena .arena-note { position: absolute; left: 0; right: 0; top: 6px; text-align: center; font: 11px var(--mono); color: var(--muted); letter-spacing: .08em; }
-  .arena.fight .hero { animation: hero-lunge .9s ease-in-out infinite; }
-  .arena.fight .villain { animation: villain-lunge .9s ease-in-out infinite; animation-delay: .45s; }
-  .arena.fight .clash { animation: clash .45s ease-out infinite; }
-  @keyframes hero-lunge { 0%, 100% { transform: translateX(0) rotate(0); } 40% { transform: translateX(26px) rotate(6deg); } 55% { transform: translateX(18px) rotate(2deg); } }
-  @keyframes villain-lunge { 0%, 100% { transform: translateX(0) rotate(0); } 40% { transform: translateX(-26px) rotate(-7deg); } 55% { transform: translateX(-18px) rotate(-2deg); } }
-  @keyframes clash { 0% { opacity: 0; transform: scale(.4); } 25% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: scale(.6); } }
-  .arena.ko .villain { animation: villain-ko 1.4s cubic-bezier(.3, .6, .4, 1) forwards; }
-  .arena.ko .hero { animation: hero-win .6s ease-in-out 1.1s 3; }
-  .arena.ko .ko-label { animation: ko-in .5s ease-out .9s forwards; }
-  .arena.ko .arena-note, .arena.fight .arena-note { display: none; }
-  @keyframes villain-ko {
-    0% { transform: translateX(0) rotate(0); filter: none; opacity: 1; }
-    20% { transform: translateX(14px) translateY(-10px) rotate(12deg); }
-    60% { transform: translateX(-24px) translateY(-6px) rotate(90deg); filter: grayscale(.5) brightness(1.1); }
-    100% { transform: translateX(-28px) translateY(-6px) rotate(90deg); filter: grayscale(.6) brightness(1.15); opacity: .9; }
-  }
-  @keyframes hero-win { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-  @keyframes ko-in { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: scale(1); } }
-  .arena .villain .eyes-x { display: none; }
-  .arena.ko .villain .eyes { display: none; }
-  .arena.ko .villain .eyes-x { display: inline; }
-  .arena.escape .villain { animation: villain-escape 1.2s ease-in forwards; }
-  @keyframes villain-escape { to { transform: translateX(160px); opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { .arena .fighter, .arena .clash, .arena .ko-label { animation: none !important; }
-    .arena.ko .ko-label { opacity: 1; } .arena.ko .villain { transform: rotate(90deg); opacity: .35; filter: grayscale(1); } }
   .engine-top { display: flex; align-items: center; gap: 10px; color: var(--p); font-weight: 800; letter-spacing: .08em; font-size: 14px; }
   .engine-top svg { width: 16px; height: 16px; }
   .tag { margin-left: auto; border: 1px solid #6b7280; color: var(--text); font-size: 11px; padding: 2px 7px; letter-spacing: .06em; font-weight: 400; }
@@ -365,22 +330,6 @@
             AUTO_PATCH_ENGINE <span class="tag idle" id="engine-tag">IDLE</span>
           </div>
           <div class="engine-detail" id="engine-detail">Writer: Qwen3-Next-80B &middot; Verifier: Gemma 4 12B &middot; both on this Nano</div>
-          <div class="arena" id="arena" hidden aria-live="polite">
-            <img class="fighter hero" id="arena-hero" alt="NanoPot">
-            <span class="clash" aria-hidden="true"></span>
-            <svg class="fighter villain" viewBox="0 0 60 72" aria-label="attacker">
-              <path d="M30 4c-12 0-20 9-20 21v9c0 3 2 5 5 5h30c3 0 5-2 5-5v-9C50 13 42 4 30 4z" fill="#1f1b2e" stroke="#ef4444" stroke-width="1.5"/>
-              <ellipse cx="30" cy="27" rx="11" ry="10" fill="#07060b"/>
-              <g class="eyes"><circle cx="25.5" cy="26" r="2.2" fill="#ef4444"/><circle cx="34.5" cy="26" r="2.2" fill="#ef4444"/></g>
-              <g class="eyes-x" stroke="#e5e7eb" stroke-width="1.6" stroke-linecap="round"><path d="M23 23.5l5 5M28 23.5l-5 5M32 23.5l5 5M37 23.5l-5 5"/></g>
-              <path d="M15 39h30l5 20H10z" fill="#1f1b2e" stroke="#ef4444" stroke-width="1.5"/>
-              <path d="M10 44l-7 10M50 44l7 8" stroke="#1f1b2e" stroke-width="5" stroke-linecap="round"/>
-              <path d="M22 59v11M38 59v11" stroke="#1f1b2e" stroke-width="5" stroke-linecap="round"/>
-              <text x="30" y="53" text-anchor="middle" font-size="8" font-family="monospace" fill="#ef4444">&lt;/&gt;</text>
-            </svg>
-            <span class="ko-label">PATCHED · K.O.</span>
-            <span class="arena-note"></span>
-          </div>
         </div>
         <div class="rule">
           <div class="id">BASE_RULE_00 &middot; NANO_CHECK_MODEL</div>
@@ -650,24 +599,6 @@ function showResponse(text) {
 
 // ---------- defense rules panel ----------
 const expanded = new Set();
-// ---------- fight arena ----------
-let arenaTimer = null;
-function arena(state) {           // 'fight' | 'ko' | 'escape' | 'off'
-  const a = $('arena');
-  if (!a) return;
-  const hero = $('arena-hero');
-  if (!hero.src) hero.src = document.querySelector('img.logo')?.src || '';
-  if (state === 'fight') {
-    if (a.classList.contains('ko') || a.classList.contains('escape')) return;  // let the ending play out first
-    clearTimeout(arenaTimer); a.className = 'arena fight'; a.hidden = false; return;
-  }
-  if (state === 'ko' || state === 'escape') {
-    clearTimeout(arenaTimer); a.className = `arena ${state}`; a.hidden = false;
-    arenaTimer = setTimeout(() => { a.className = 'arena'; a.hidden = true; refreshRules(); }, 4200);
-    return;
-  }
-  if (!a.classList.contains('ko') && !a.classList.contains('escape')) { a.className = 'arena'; a.hidden = true; }
-}
 const jobStatus = new Map();  // job id -> last status seen, so each completion is logged once
 async function refreshRules() {
   const [patches, jobs] = await Promise.all([
@@ -680,14 +611,13 @@ async function refreshRules() {
   for (const j of jobs) {
     const before = jobStatus.get(j.id);
     if (before && before !== j.status && !['queued', 'running'].includes(j.status)) {
-      if (j.status === 'approved') { log(`🛡 AUTO_PATCH_APPLIED for ${j.attack_type} on "${j.field}": the next attempt will be blocked`, 'patch'); arena('ko'); }
-      else if (j.status !== 'skipped') { log(`auto-patch for ${j.attack_type} ended "${j.status}": the honeypot keeps catching it`, 'warn'); arena('escape'); }
+      if (j.status === 'approved') log(`🛡 AUTO_PATCH_APPLIED for ${j.attack_type} on "${j.field}": the next attempt will be blocked`, 'patch');
+      else if (j.status !== 'skipped') log(`auto-patch for ${j.attack_type} ended "${j.status}": the honeypot keeps catching it`, 'warn');
     }
     jobStatus.set(j.id, j.status);
   }
   // Reflect auto-patch jobs on the engine badge, unless an attack wave owns it.
   const active = jobs.find((j) => ['queued', 'running'].includes(j.status));
-  if (!polling) arena(active ? 'fight' : 'off');
   const tag = $('engine-tag');
   if (!polling && active) {
     tag.className = 'tag learning'; tag.textContent = 'LEARNING';
@@ -756,7 +686,7 @@ async function trailFor(patch) {
 let polling = null, lastPhase = null;
 function setWaveUi(running) {
   $('launch').disabled = running; $('reset').disabled = running;
-  if (running) { const tag = $('engine-tag'); tag.className = 'tag learning'; tag.textContent = 'LEARNING'; arena('fight'); }
+  if (running) { const tag = $('engine-tag'); tag.className = 'tag learning'; tag.textContent = 'LEARNING'; }
 }
 async function launchWave() {
   setWaveUi(true);
@@ -800,7 +730,6 @@ function showWaveResult(r, elapsed) {
   saveNovel(before, after);
   const tag = $('engine-tag');
   tag.className = 'tag'; tag.textContent = p.status === 'approved' ? 'MITIGATED' : 'NO PATCH';
-  arena(p.status === 'approved' ? 'ko' : 'escape');
   $('engine-detail').textContent = `Novel attack detection ${before}% → ${after}% in ${Math.round(elapsed)}s. `
     + (p.status === 'approved' ? `Vulnerability patched: ${p.rule.attack_type}.` : 'Patch loop ran out of attempts.');
 }
