@@ -41,6 +41,15 @@
   #lightning { position: fixed; inset: 0; pointer-events: none; z-index: 50; opacity: 0;
                background: radial-gradient(ellipse at 30% 0%, rgba(243, 232, 255, .95), rgba(216, 180, 254, .45) 45%, rgba(88, 28, 135, .15) 80%); }
   #lightning.strike { animation: strike .9s ease-out; }
+  /* Sparks thrown off both ends of the title when the lightning strikes. */
+  .spark { position: fixed; width: 3px; height: 3px; border-radius: 50%; pointer-events: none; z-index: 60;
+           background: var(--c); box-shadow: 0 0 6px 2px var(--c), 0 0 14px 4px rgba(168, 85, 247, .55);
+           animation: spark var(--dur) cubic-bezier(.15, .7, .35, 1) forwards; }
+  @keyframes spark {
+    0% { transform: translate(0, 0) scale(1.2); opacity: 1; }
+    70% { opacity: .9; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; }
+  }
   @keyframes strike { 0% { opacity: 0; } 6% { opacity: .75; } 14% { opacity: .05; } 22% { opacity: .55; } 34% { opacity: 0; } 100% { opacity: 0; } }
   .title.glitch::before, .title.glitch::after { content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; }
   .title.glitch::before { color: #a855f7; animation: glitch-a .36s steps(3) infinite; }
@@ -58,7 +67,7 @@
     66% { clip-path: inset(40% 0 30% 0); transform: translate(3px, 0); }
     100% { clip-path: inset(2% 0 78% 0); transform: translate(-5px, 0); }
   }
-  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after, #lightning.strike { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .title.green, .title.red, .title.glitch, .title.glitch::before, .title.glitch::after, #lightning.strike { animation: none; } .spark { display: none; } }
   .subtitle { margin-top: 10px; color: var(--g-mid); letter-spacing: .16em; font-size: 15px; text-transform: uppercase; }
   .subtitle .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--red); margin-right: 8px; vertical-align: middle; }
   .subtitle .dot.live { background: var(--g-bright); box-shadow: 0 0 8px var(--g-bright); }
@@ -1035,8 +1044,32 @@ function setTitleMark(mark) {
   t.textContent = `${mark} ${TITLE}`;
   t.dataset.text = t.textContent;  // the glitch slices copy this
 }
+const SPARK_COLORS = ['#ffffff', '#e9d5ff', '#fde68a', '#c084fc', '#f5f3ff'];
+function sparkBurst(count) {
+  const r = $('title').getBoundingClientRect();
+  for (const side of [{ x: r.left - 4, dir: -1 }, { x: r.right + 4, dir: 1 }]) {
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('i');
+      s.className = 'spark';
+      const angle = (Math.random() * 130 - 65) * Math.PI / 180;   // fan out sideways
+      const dist = 35 + Math.random() * 95;
+      s.style.left = `${side.x}px`;
+      s.style.top = `${r.top + r.height * (0.25 + Math.random() * 0.5)}px`;
+      s.style.setProperty('--dx', `${side.dir * Math.cos(angle) * dist}px`);
+      s.style.setProperty('--dy', `${Math.sin(angle) * dist + 25 + Math.random() * 30}px`);  // arc down a little
+      s.style.setProperty('--dur', `${450 + Math.random() * 500}ms`);
+      s.style.setProperty('--c', SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)]);
+      document.body.append(s);
+      setTimeout(() => s.remove(), 1100);
+    }
+  }
+}
 function glitchThenRed() {
   const t = $('title');
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    sparkBurst(18);                                   // first flash
+    titleTimers.push(setTimeout(() => sparkBurst(12), 200));   // second flash
+  }
   t.className = 'title glitch';
   const bolt = $('lightning');
   bolt.classList.remove('strike'); void bolt.offsetWidth; bolt.classList.add('strike');  // restart the flash
